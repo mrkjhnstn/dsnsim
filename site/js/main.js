@@ -263,6 +263,12 @@ $('play').addEventListener('click', () => { clock.playing = !clock.playing; cloc
 $('rev').addEventListener('click', () => { clock.dir = -clock.dir; clock.live = false; clock.playing = true; if (clock.rate === 1) clock.rate = 60; syncButtons(); });
 $('now').addEventListener('click', goLive);
 const slider = $('slider');
+// Only hold the thumb while it is actually being dragged; afterwards it follows the clock again.
+let scrubbing = false;
+slider.addEventListener('pointerdown', () => { scrubbing = true; });
+addEventListener('pointerup', () => { scrubbing = false; });
+addEventListener('pointercancel', () => { scrubbing = false; });
+slider.addEventListener('change', () => { scrubbing = false; slider.blur(); });
 slider.addEventListener('input', () => { clock.live = false; setTime(tMin + (slider.value / 1000) * (tMax - tMin)); syncButtons(); });
 
 // ---------------------------------------------------------------- views
@@ -838,7 +844,7 @@ function frame(nowMs) {
   $('date').textContent = `${fmtDate(t)} · ${fmtDoy(t)}`;
   $('time').textContent = fmtTime(t);
   $('live').classList.toggle('on', clock.live);
-  if (document.activeElement !== slider) slider.value = Math.round((t - tMin) / (tMax - tMin) * 1000);
+  if (!scrubbing) slider.value = Math.round((t - tMin) / (tMax - tMin) * 1000);
   const w = wallNow(), tick = $('nowtick');
   tick.style.display = w >= tMin && w <= tMax ? '' : 'none';
   tick.style.left = `${(w - tMin) / (tMax - tMin) * 100}%`;
