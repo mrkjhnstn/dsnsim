@@ -1,0 +1,15 @@
+[project]
+name = "dsnsim"
+version = "0.1.0"
+description = "DSN schedule visualizer: backend data pipeline"
+requires-python = ">=3.10"
+dependencies = ["skyfield>=1.48"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+packages = ["dsnsim"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
