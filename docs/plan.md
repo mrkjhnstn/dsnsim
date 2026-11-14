@@ -66,7 +66,7 @@ Outputs: `schedule.json`, `ephem.json`, `meta.json`.
 - **Planets:** spacecraft at the Moon, Mars and Jupiter are drawn at the body; its label lists who is in contact. Clicking the body fans them out in a ring and opens a card listing them. MSPA links to a collapsed body merge into one beam.
 - **Cards:** hover or click a spacecraft, antenna or planet. Pinned cards add pass marks on the timeline and PREV / NEXT PASS.
 - **Complex views:** camera follows the Earth's rotation; other complexes' links are dimmed.
-- **Auto-tour:** ALL (25 s, slow rotation), then each complex, showing each antenna's card for 6 s in turn.
+- **Auto-tour:** ALL view with slow rotation, showing a card for each spacecraft in setup, tracking or teardown (5 s each, inside out, expanding body groups as needed); then each complex, showing each antenna's card (6 s each).
 - **Default view:** from about 60° north, so the distance rings read as rings.
 
 ## Phases

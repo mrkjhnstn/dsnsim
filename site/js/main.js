@@ -293,14 +293,29 @@ function setView(key) {
 }
 document.querySelectorAll('#views [data-view]').forEach((b) => b.addEventListener('click', () => { setTour(false); setView(b.dataset.view); }));
 // Auto-tour for unattended display: cycles ALL -> each complex.
-// In each complex view the tour steps through the antennas, showing each one's card.
+// The tour shows cards as it goes: in the ALL view, each spacecraft in contact
+// (setup, tracking or teardown); in a complex view, each of its antennas.
 const TOUR = ['ALL', 'GDSCC', 'CDSCC', 'MDSCC'];
-const TOUR_ALL_S = 25, TOUR_ANT_S = 6, TOUR_FLY_S = 2;
-const tour = { on: false, i: 0, start: 0, next: 0, k: -1, picked: false };
+const TOUR_ALL_S = 25;                       // ALL view when nothing is in contact
+const TOUR_LEAD_S = { ALL: 6, complex: 2 };  // overview / fly-in time before the first card
+const TOUR_CARD_S = { ALL: 5, complex: 6 };
+const REGION_ORDER = ['heo', 'lunar', 'l1l2', 'mars', 'helio', 'outer'];
+const tour = { on: false, i: 0, start: 0, next: 0, k: -1, picked: false, list: [] };
+function craftInContact() {
+  const t = clock.t, out = [];
+  for (const c of craft.values()) {
+    if ((actsByUser.get(c.key) || []).some((a) => actState(a, t))) out.push(c);
+  }
+  // Inside out, keeping spacecraft at the same body together.
+  return out.sort((p, q) => REGION_ORDER.indexOf(p.region) - REGION_ORDER.indexOf(q.region)
+    || (p.host?.key || '').localeCompare(q.host?.key || '') || p.key.localeCompare(q.key));
+}
 function tourStep(i, nowMs) {
   tour.i = i; tour.start = nowMs; tour.k = -1;
-  const key = TOUR[i];
-  const dwell = key === 'ALL' ? TOUR_ALL_S : TOUR_FLY_S + complexes.get(key).antennas.length * TOUR_ANT_S;
+  const key = TOUR[i], kind = key === 'ALL' ? 'ALL' : 'complex';
+  tour.list = key === 'ALL' ? craftInContact().map((c) => ({ type: 'craft', ref: c }))
+    : complexes.get(key).antennas.map((a) => ({ type: 'ant', ref: a }));
+  const dwell = tour.list.length ? TOUR_LEAD_S[kind] + tour.list.length * TOUR_CARD_S[kind] : TOUR_ALL_S;
   tour.next = nowMs + dwell * 1000;
   if (tour.picked) { select(null); tour.picked = false; }
   setView(key);
@@ -721,10 +736,16 @@ function frame(nowMs) {
   }
   if (tour.on) {
     if (nowMs > tour.next) tourStep((tour.i + 1) % TOUR.length, nowMs);
-    else if (TOUR[tour.i] !== 'ALL') {
-      const list = complexes.get(TOUR[tour.i]).antennas;
-      const k = Math.min(Math.floor((nowMs - tour.start - TOUR_FLY_S * 1000) / (TOUR_ANT_S * 1000)), list.length - 1);
-      if (k >= 0 && k !== tour.k) { tour.k = k; tour.picked = true; select({ type: 'ant', ref: list[k] }); }
+    else if (tour.list.length) {
+      const kind = TOUR[tour.i] === 'ALL' ? 'ALL' : 'complex';
+      const k = Math.min(Math.floor((nowMs - tour.start - TOUR_LEAD_S[kind] * 1000) / (TOUR_CARD_S[kind] * 1000)), tour.list.length - 1);
+      if (k >= 0 && k !== tour.k) {
+        tour.k = k; tour.picked = true;
+        const obj = tour.list[k];
+        // A spacecraft collapsed into a body (Mars, Moon, ...): open that body's ring first.
+        if (obj.type === 'craft' && obj.ref.host) obj.ref.host.expanded = true;
+        select(obj);
+      }
     }
   }
   controls.autoRotate = tour.on && view.focus === 'ALL' && !view.fly;

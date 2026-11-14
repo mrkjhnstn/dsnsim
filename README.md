@@ -50,7 +50,7 @@ Static files in `site/`; no build step. `python3 -m dsnsim.serve` serves it and 
 - **Views:** ALL, GOLDSTONE, CANBERRA, MADRID (keys 1–4). A complex view follows the Earth's rotation and dims other links.
 - **Details:** hover or click a spacecraft or antenna (or a status-board row) for a card with range, light time, current and next activity. Esc closes it.
 - **Timeline context:** with a card pinned, the scrub bar shows that antenna's, spacecraft's or planet's passes (cyan tracking, blue setup, gray teardown, amber busy). PREV PASS / NEXT PASS (keys `[` and `]`) jump between them.
-- **Auto-tour:** TOUR (T) cycles ALL and each complex for unattended display, stepping through each complex's antennas and showing their cards; any click on the scene stops it. `?tour` in the URL starts it automatically.
+- **Auto-tour:** TOUR (T) cycles ALL and each complex for unattended display, showing a card for each spacecraft in contact (ALL view, expanding the Moon, Mars or Jupiter group as needed) and for each antenna (complex views); any click on the scene stops it. `?tour` in the URL starts it automatically.
 - **Full screen:** F.
 - **URL options:** `?t=2026-11-14T12:00:00Z` starts at a fixed time; `&view=MDSCC` starts on a complex; `&rate=600` sets the speed.
 
