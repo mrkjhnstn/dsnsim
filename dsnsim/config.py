@@ -90,8 +90,8 @@ MISSIONS = {
     "MSL": {"name": "Curiosity", "region": "mars", "alias": "mars"},
     "M20": {"name": "Perseverance", "region": "mars", "alias": "mars"},
     # Heliocentric / inner solar system
-    "ESCB": {"name": "ESCAPADE Blue", "region": "helio", "horizons": "ESCAPADE Blue", "step": "deep"},
-    "ESCG": {"name": "ESCAPADE Gold", "region": "helio", "horizons": "ESCAPADE Gold", "step": "deep"},
+    "ESCB": {"name": "ESCAPADE Blue", "region": "helio", "horizons": "ESCAPADE-Blue", "step": "deep"},
+    "ESCG": {"name": "ESCAPADE Gold", "region": "helio", "horizons": "ESCAPADE-Gold", "step": "deep"},
     "BIOS": {"name": "BioSentinel", "region": "helio", "horizons": "BioSentinel", "step": "deep"},
     "BEPI": {"name": "BepiColombo", "region": "helio", "horizons": "-121", "step": "deep"},
     "MMX": {"name": "Martian Moons eXploration", "region": "helio", "horizons": "MMX", "step": "deep"},

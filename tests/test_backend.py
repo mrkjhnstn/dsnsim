@@ -98,7 +98,7 @@ def test_elevation_zenith_and_interp():
 def test_build_offline(tmp_path, monkeypatch):
     """Full build with the example schedule and fake trajectory sources."""
     def fake_horizons(command, start, stop, step, get=None):
-        if command == "ESCAPADE Blue":
+        if command == "ESCAPADE-Blue":
             raise ephem.EphemError("Multiple matches")
         n = int((stop - start).total_seconds() // step) + 1
         return {"t0": round(start.timestamp()), "step": step, "pos": [[1e6, 2e6, 3e5]] * n}

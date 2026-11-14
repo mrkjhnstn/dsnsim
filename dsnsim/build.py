@@ -110,15 +110,16 @@ def elevation_report(activities: list[dict], objects: dict) -> list[dict]:
             continue
         bot = datetime.fromisoformat(a["bot"].replace("Z", "+00:00")).timestamp()
         eot = datetime.fromisoformat(a["eot"].replace("Z", "+00:00")).timestamp()
-        mid = (bot + eot) / 2
-        pos = interp(track, mid)
-        if pos is None:
-            continue
         ant = ANTENNAS[a["dss"]]
-        el = round(elevation_deg(pos, mid, ant["lat"], ant["lon"], ant["alt_m"]), 1)
-        a["el_mid"] = el
-        if el < 0:
-            low.append({"id": a["id"], "user": a["user"], "dss": a["dss"], "bot": a["bot"], "el_mid": el})
+        els = []
+        for t in (bot, (bot + eot) / 2, eot):
+            pos = interp(track, t)
+            els.append(None if pos is None else round(elevation_deg(pos, t, ant["lat"], ant["lon"], ant["alt_m"]), 1))
+        if els[1] is None:
+            continue
+        a["el"] = els  # elevation (deg) at BOT, mid-track, EOT
+        if els[1] < 0:
+            low.append({k: a[k] for k in ("id", "user", "dss", "activity", "bot", "eot", "assoc_type", "el")})
     return low
 
 
@@ -205,6 +206,19 @@ def main(argv: list[str] | None = None) -> int:
           f"{len(low)} tracks below horizon")
     if unknown:
         print("Users with no mission config:", ", ".join(unknown))
+    if low:
+        print("Tracks below the horizon at mid-track (el at BOT, mid, EOT):")
+        for t in low:
+            print(f"  {t['user']:5s} DSS-{t['dss']} {t['bot']} to {t['eot']} {t['activity']!r} {t['assoc_type']} el={t['el']}")
+    if args.check:
+        print("Mid-track elevation by mission (tracks, min, median):")
+        by_user: dict[str, list[float]] = {}
+        for a in activities:
+            if "el" in a:
+                by_user.setdefault(a["user"], []).append(a["el"][1])
+        for user, els in sorted(by_user.items()):
+            els.sort()
+            print(f"  {user:5s} {len(els):3d}  {els[0]:6.1f}  {els[len(els) // 2]:6.1f}")
     if args.check or failed:
         for key, st in sorted(status.items()):
             if args.check or not st["ok"]:
