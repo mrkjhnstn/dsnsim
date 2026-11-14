@@ -64,7 +64,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 2000);
-camera.position.set(9, 6.5, 11);
+camera.position.set(4.9, 13, 5.7);   // about 60 deg north, so the rings open up instead of flattening
 const controls = new OrbitControls(camera, canvas);
 controls.enablePan = false;
 controls.enableDamping = true;
@@ -272,7 +272,7 @@ function viewTarget(key, out) {
   if (key === 'ALL') {
     out.copy(camera.position).setY(0);
     if (out.lengthSq() < 1e-6) out.set(1, 0, 1);
-    return out.normalize().setY(0.5).normalize().multiplyScalar(15);
+    return out.normalize().setY(1.73).normalize().multiplyScalar(15);
   }
   // Oblique view: above and east of the complex, so outbound links are visible.
   const u = tmpV2.copy(complexes.get(key).unit).applyAxisAngle(Y, earth.rotation.y);
@@ -287,12 +287,24 @@ function setView(key) {
 }
 document.querySelectorAll('#views [data-view]').forEach((b) => b.addEventListener('click', () => { setTour(false); setView(b.dataset.view); }));
 // Auto-tour for unattended display: cycles ALL -> each complex.
-const TOUR = [['ALL', 25], ['GDSCC', 15], ['CDSCC', 15], ['MDSCC', 15]];
-const tour = { on: false, i: 0, next: 0 };
+// In each complex view the tour steps through the antennas, showing each one's card.
+const TOUR = ['ALL', 'GDSCC', 'CDSCC', 'MDSCC'];
+const TOUR_ALL_S = 25, TOUR_ANT_S = 6, TOUR_FLY_S = 2;
+const tour = { on: false, i: 0, start: 0, next: 0, k: -1, picked: false };
+function tourStep(i, nowMs) {
+  tour.i = i; tour.start = nowMs; tour.k = -1;
+  const key = TOUR[i];
+  const dwell = key === 'ALL' ? TOUR_ALL_S : TOUR_FLY_S + complexes.get(key).antennas.length * TOUR_ANT_S;
+  tour.next = nowMs + dwell * 1000;
+  if (tour.picked) { select(null); tour.picked = false; }
+  setView(key);
+}
 function setTour(on) {
-  tour.on = on; tour.i = 0; tour.next = performance.now() + TOUR[0][1] * 1000;
+  if (tour.on === on) return;
+  tour.on = on;
   document.body.classList.toggle('tour', on);
-  if (on) setView('ALL');
+  if (on) tourStep(0, performance.now());
+  else if (tour.picked) { select(null); tour.picked = false; }
 }
 $('tour').addEventListener('click', () => setTour(!tour.on));
 canvas.addEventListener('pointerdown', () => { if (tour.on) setTour(false); });
@@ -696,10 +708,13 @@ function frame(nowMs) {
     camera.position.copy(view.fly.from).normalize().lerp(tmpV.normalize(), e).normalize().multiplyScalar(r);
     if (u >= 1) view.fly = null;
   }
-  if (tour.on && nowMs > tour.next) {
-    tour.i = (tour.i + 1) % TOUR.length;
-    tour.next = nowMs + TOUR[tour.i][1] * 1000;
-    setView(TOUR[tour.i][0]);
+  if (tour.on) {
+    if (nowMs > tour.next) tourStep((tour.i + 1) % TOUR.length, nowMs);
+    else if (TOUR[tour.i] !== 'ALL') {
+      const list = complexes.get(TOUR[tour.i]).antennas;
+      const k = Math.min(Math.floor((nowMs - tour.start - TOUR_FLY_S * 1000) / (TOUR_ANT_S * 1000)), list.length - 1);
+      if (k >= 0 && k !== tour.k) { tour.k = k; tour.picked = true; select({ type: 'ant', ref: list[k] }); }
+    }
   }
   controls.autoRotate = tour.on && view.focus === 'ALL' && !view.fly;
   controls.autoRotateSpeed = 0.35;
