@@ -21,13 +21,13 @@ https://spsweb.fltops.jpl.nasa.gov/rest/ops/schedules/activity/json?startTime=20
 | Activity times | Setup start, BOT (beginning of track), EOT (end of track), teardown end. Exact field names still to confirm. |
 | `segservicealias` | Service/link description (e.g. "XR TTC v3", "DDOR GLD/MAD v3") |
 
-Facility to complex mapping (from the DSS number):
+Facility to complex mapping. Show only these DSN antennas; activities on any other `facility` value (control center, non-DSN antennas) are excluded.
 
-| DSS | Complex |
-|---|---|
-| 1x, 2x | Goldstone |
-| 3x, 4x | Canberra |
-| 5x, 6x | Madrid |
+| Complex | 70m | 34m |
+|---|---|---|
+| Goldstone, CA | DSS-14 | DSS-23, 24, 25, 26 |
+| Canberra, Australia | DSS-43 | DSS-34, 35, 36 |
+| Madrid, Spain | DSS-63 | DSS-53, 54, 55, 56, 65 |
 
 Display states for each link: setup → tracking (BOT to EOT) → teardown.
 
