@@ -58,6 +58,9 @@ def build_ephem(now: datetime, old: dict, max_age_h: float, users: set[str], pau
             objects[key] = {"alias": cfg["alias"]}
             status[key] = {"source": f"stand-in:{cfg['alias']}", "ok": True}
             return
+        if "tle" not in cfg and "horizons" not in cfg:
+            status[key] = {"source": "none", "ok": True}
+            return
         src = f"tle:{cfg['tle']}" if "tle" in cfg else f"horizons:{cfg['horizons']}"
         cached = old_objs.get(key)
         if (
@@ -106,6 +109,7 @@ def elevation_report(activities: list[dict], objects: dict) -> list[dict]:
         if a["kind"] != "track":
             continue
         track = _track_for(objects, a["user"])
+        a["traj"] = track is not None  # False: show the antenna in use, but draw no link
         if not track:
             continue
         bot = datetime.fromisoformat(a["bot"].replace("Z", "+00:00")).timestamp()

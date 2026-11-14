@@ -7,6 +7,7 @@ Each mission has one of:
             or a name Horizons can match uniquely)
   tle:      NORAD catalog number, propagated with SGP4
   alias:    key of a context body used as a stand-in (e.g. "moon")
+  (none):   no trajectory available; the antenna is shown in use, with no link
 and optionally:
   fallback: context body to use if the primary source fails
   step:     "near" (hourly samples) or "deep" (6-hourly samples)
@@ -81,6 +82,7 @@ MISSIONS = {
     "CAPS": {"name": "CAPSTONE", "region": "lunar", "alias": "moon"},
     "THB": {"name": "THEMIS-B (ARTEMIS P1)", "region": "lunar", "horizons": "-192", "fallback": "moon", "step": "near"},
     "THC": {"name": "THEMIS-C (ARTEMIS P2)", "region": "lunar", "horizons": "-193", "fallback": "moon", "step": "near"},
+    "B101": {"name": "Blue Origin HLS test flight", "region": "lunar"},
     # Mars
     "M01O": {"name": "Mars Odyssey", "region": "mars", "horizons": "-53", "fallback": "mars", "step": "deep"},
     "MRO": {"name": "Mars Reconnaissance Orbiter", "region": "mars", "horizons": "-74", "fallback": "mars", "step": "deep"},
