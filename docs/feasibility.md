@@ -1,6 +1,6 @@
 # dsnsim — Feasibility Notes
 
-Status: feasibility investigation, nothing built yet. Last updated 2026-11-14.
+Status: feasibility investigation, completed 2026-11-14. The project has since been built; see [plan.md](plan.md) and the README. A section at the end records what the first live runs showed.
 
 ## Concept
 
@@ -226,3 +226,12 @@ Earth-centered inertial (GCRS): Earth rotates under a mostly fixed set of spacec
 - Whether THB/THC are available from SSCWeb for future dates (predicted orbits).
 - Implementation platform: Python backend (Skyfield/spiceypy) feeding a browser 3D view, or fully browser-based.
 - Should the tool read the schedule each time to pick its objects, or use a fixed list?
+
+## Results from the first live runs (2026-11-14)
+
+- **Pipeline validated:** over a 9-day window, 713 tracks; every mission's mid-track elevation is above the horizon (minimums mostly 10–30°). This confirms frames, timing and Earth rotation, including for the stand-ins.
+- **Horizons IDs confirmed:** all numeric IDs in `dsnsim/config.py` resolve, including THB/THC (−192/−193). Name searches work for `SWFO-L1`, `Carruthers`, `Roman`, `BioSentinel`, `MMX`, `ESCAPADE-Blue` and `ESCAPADE-Gold` (hyphenated; with a space Horizons falls through to a small-body search and fails).
+- **Additional users** outside the Nov 1–5 sample: BEPI (BepiColombo), DSCO (DSCOVR), XMM (XMM-Newton, TLE), MMX, and B101 (Blue Origin HLS test flight, no trajectory yet).
+- **Below-horizon tracks:** the only two were ECC (Emergency Control Center) data connectivity tests booked under THB and LUCY, which do not involve the spacecraft. General rule adopted: a track whose spacecraft is below the horizon at mid-track is shown as busy.
+- **Antenna count:** 15 DSN antennas (5 Goldstone, 4 Canberra, 6 Madrid).
+- **Work categories:** 1A1 and 1A2 are links; any other scheduled activity on an antenna is busy.

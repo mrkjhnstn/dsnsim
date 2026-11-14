@@ -1,6 +1,6 @@
 # dsnsim — Plan
 
-Decisions as of 2026-11-14. Background and data findings are in [feasibility.md](feasibility.md).
+Decisions as of 2026-11-14. **Status: phases 1–5 built**; remaining work is listed at the end. Background and data findings are in [feasibility.md](feasibility.md).
 
 ## Goal
 
@@ -10,7 +10,7 @@ A web visualizer showing Earth, the three DSN complexes, and the links to schedu
 
 | Topic | Decision |
 |---|---|
-| Hosting | Own machine for now. Keep it portable to GitHub Actions + Pages (static JSON + static viewer, one build command, no secrets). |
+| Hosting | Own machine (`python3 -m dsnsim.serve`, port 8002) and GitHub Actions + Pages (hourly, public). Static JSON + static viewer, one build command, no secrets. |
 | Look | Photoreal Earth (Blue Marble, no political boundaries, night lights, atmosphere) with schematic-style labels and overlays. |
 | Distance scale | Fully logarithmic radial scale, true geocentric directions. |
 | Time range | About 1 day back to 7 days forward, with snap-to-now. |
@@ -22,7 +22,7 @@ A web visualizer showing Earth, the three DSN complexes, and the links to schedu
 | State | Rule | Display |
 |---|---|---|
 | Tracking | Spacecraft user, `wrkcat` 1A1 or 1A2 | Link drawn to the spacecraft |
-| Busy | Any other scheduled activity on the antenna (DSN/DSS maintenance, tests, radio astronomy, other work categories) | Distinct antenna marker, activity name on its card, no link |
+| Busy | Any other scheduled activity on the antenna (DSN/DSS maintenance, tests, radio astronomy, other work categories). Also a track whose spacecraft is below the horizon at mid-track (e.g. ECC connectivity tests booked under a mission), or whose mission has no trajectory (shown in use, no link). | Distinct antenna marker, activity name on its card, no link |
 | Idle | Nothing scheduled | Plain marker |
 
 ## Architecture
@@ -57,6 +57,17 @@ Outputs: `schedule.json`, `ephem.json`, `meta.json`.
 - **Auto-tour:** cycles through complexes for unattended display.
 - Full-screen landscape layout.
 
+## Display conventions (as built)
+
+- **Scale:** true directions from Earth's centre; logarithmic distance, with labeled rings (GEO, Moon, L1/L2, 1 AU, 10 AU, 100 AU) in the ecliptic plane.
+- **Antennas:** the antennas of a complex are fanned out in an east–west row (about 2.4° apart, 70 m first) so each is visible.
+- **Links:** leave the antenna vertically and bend toward the spacecraft, so they never cut through the Earth's limb at log scale. Cyan while tracking, with cyan pulses down and orange pulses up during uplink windows; thicker for 70 m.
+- **Setup / teardown:** setup is a blue dashed line that extends from the antenna and reaches the spacecraft at BOT; teardown is a gray dotted line that retracts to the antenna.
+- **Planets:** spacecraft at the Moon, Mars and Jupiter are drawn at the body; its label lists who is in contact. Clicking the body fans them out in a ring and opens a card listing them. MSPA links to a collapsed body merge into one beam.
+- **Cards:** hover or click a spacecraft, antenna or planet. Pinned cards add pass marks on the timeline and PREV / NEXT PASS.
+- **Complex views:** camera follows the Earth's rotation; other complexes' links are dimmed.
+- **Auto-tour:** ALL (25 s, slow rotation), then each complex (15 s).
+
 ## Phases
 
 1. **Backend pipeline** and JSON format; verify Horizons coverage for all missions.
@@ -64,3 +75,10 @@ Outputs: `schedule.json`, `ephem.json`, `meta.json`.
 3. **Spacecraft at log distance:** labels, distance rings, clustering around Moon and Mars.
 4. **Camera views, cards, full-screen polish, auto-tour.**
 5. **Automation:** hourly job locally; optional GitHub Actions + Pages.
+
+## Remaining
+
+- Tune the auto-tour (dwell times, camera angles, text sizes) on the wall display.
+- Confirm the hourly GitHub Actions run can reach the schedule endpoint, Horizons and CelesTrak.
+- B101 (Blue Origin HLS test flight) has no trajectory yet; add a source when one exists.
+- Antenna coordinates are approximate; DSS-23, 53 and 56 are estimates.

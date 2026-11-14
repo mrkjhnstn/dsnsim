@@ -1,0 +1,45 @@
+# Builds the data hourly and publishes the viewer to GitHub Pages.
+# One-time setup: repository Settings -> Pages -> Source: "GitHub Actions".
+name: Publish viewer
+
+on:
+  schedule:
+    - cron: "7 * * * *"   # hourly; GitHub may start scheduled runs late
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install .
+      # Carry trajectories over between runs so Horizons is queried about once a day.
+      - uses: actions/cache@v4
+        with:
+          path: site/data/ephem.json
+          key: ephem-${{ github.run_id }}
+          restore-keys: ephem-
+      - name: Build data
+        run: python -m dsnsim.build --out site/data --check
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -306,6 +306,8 @@ addEventListener('keydown', (e) => {
   else if (k === 'f') toggleFs();
   else if (k === 't') setTour(!tour.on);
   else if (k === 'escape') select(null);
+  else if (k === '[') jump(-1);
+  else if (k === ']') jump(1);
   else if ('1234'.includes(k)) { setTour(false); setView(['ALL', 'GDSCC', 'CDSCC', 'MDSCC'][+k - 1]); }
 });
 
@@ -519,6 +521,7 @@ canvas.addEventListener('pointerup', (e) => {
 });
 $('card').addEventListener('click', (e) => {
   if (e.target.classList.contains('close')) return select(null);
+  if (e.target.dataset.jump) return jump(+e.target.dataset.jump);
   const row = e.target.closest('[data-craft]');
   if (row && craft.has(row.dataset.craft)) select({ type: 'craft', ref: craft.get(row.dataset.craft) });
 });
@@ -600,6 +603,41 @@ function cardHtml(obj, t) {
   }
   return h;
 }
+// Timeline context: passes of the pinned object, drawn above the scrub bar.
+function actsOf(obj) {
+  if (!obj) return [];
+  if (obj.type === 'ant') return obj.ref.acts;
+  if (obj.type === 'craft') return actsByUser.get(obj.ref.key) || [];
+  return obj.ref.members.flatMap((c) => actsByUser.get(c.key) || []);
+}
+const objName = (obj) => (obj.type === 'ant' ? `DSS-${obj.ref.dss}` : obj.type === 'craft' ? obj.ref.key : obj.ref.name);
+let bandsKey = null;
+function updateBands() {
+  const obj = sel.pinned;
+  const key = obj ? `${obj.type}:${objName(obj)}:${generated}:${obj.type === 'body' ? obj.ref.members.length : ''}` : '';
+  if (key === bandsKey) return;
+  bandsKey = key;
+  const span = tMax - tMin, pct = (a, b) => `left:${((Math.max(a, tMin) - tMin) / span * 100).toFixed(3)}%;width:${((Math.min(b, tMax) - Math.max(a, tMin)) / span * 100).toFixed(3)}%`;
+  let h = '';
+  for (const a of actsOf(obj)) {
+    if (a.t[3] <= tMin || a.t[0] >= tMax) continue;
+    if (a.kind !== 'track') { h += `<i class="busy" style="${pct(a.t[0], a.t[3])}"></i>`; continue; }
+    if (a.t[1] > a.t[0]) h += `<i class="setup" style="${pct(a.t[0], a.t[1])}"></i>`;
+    h += `<i class="track" style="${pct(a.t[1], a.t[2])}"></i>`;
+    if (a.t[3] > a.t[2]) h += `<i class="teardown" style="${pct(a.t[2], a.t[3])}"></i>`;
+  }
+  $('bands').innerHTML = h;
+}
+// Jump to the previous / next pass (BOT, or start of a busy activity) of the pinned object.
+function jump(dir) {
+  const obj = sel.pinned;
+  if (!obj) return;
+  const times = actsOf(obj).map((a) => (a.kind === 'track' ? a.t[1] : a.t[0])).filter((x) => x >= tMin && x <= tMax).sort((p, q) => p - q);
+  const margin = Math.max(5, 3 * clock.rate);
+  const target = dir > 0 ? times.find((x) => x > clock.t + 1) : times.filter((x) => x < clock.t - margin).pop();
+  if (target === undefined) return;
+  clock.live = false; setTime(target); syncButtons(); cardAt = 0;
+}
 let cardAt = 0, cardHtmlLast = '';
 function updateCard(t) {
   const obj = sel.pinned || sel.hover, card = $('card'), ring = $('sel');
@@ -612,7 +650,8 @@ function updateCard(t) {
   cardAt = now;
   card.hidden = false;
   card.classList.toggle('pinned', !!sel.pinned);
-  const html = (sel.pinned ? '<button class="close" title="Close (Esc)">×</button>' : '') + cardHtml(obj, t);
+  const html = (sel.pinned ? '<button class="close" title="Close (Esc)">×</button>' : '') + cardHtml(obj, t)
+    + (sel.pinned ? '<div class="jump"><button data-jump="-1" title="Previous pass ( [ )">◀ PREV PASS</button><button data-jump="1" title="Next pass ( ] )">NEXT PASS ▶</button></div>' : '');
   if (html !== cardHtmlLast) { cardHtmlLast = html; card.innerHTML = html; }
 }
 
@@ -773,6 +812,7 @@ function frame(nowMs) {
   updateCraftLabels();
   updateBoard(states);
   updateCard(t);
+  updateBands();
 
   // HUD
   $('date').textContent = `${fmtDate(t)} · ${fmtDoy(t)}`;
@@ -784,6 +824,7 @@ function frame(nowMs) {
   tick.style.left = `${(w - tMin) / (tMax - tMin) * 100}%`;
   const age = (w - generated) / 3600;
   $('status').innerHTML = `Schedule and trajectories as of ${fmtDate(generated)} ${fmtTime(generated).slice(0, 5)} UTC`
+    + (sel.pinned ? ` · timeline marks: ${objName(sel.pinned)}` : '')
     + (age > 3 ? ` <span class="warn">— data is ${age < 48 ? age.toFixed(0) + ' h' : (age / 24).toFixed(0) + ' days'} old; run the backend to refresh</span>` : '');
 
   // Pick up new data from the hourly backend run
@@ -799,7 +840,7 @@ loadData().then(() => {
   if (params.get('view')) setView(params.get('view'));
   if (params.has('tour')) setTour(true);
   syncButtons();
-  window.__dsnsim = { clock, view, craft, links, antennas, select, tour, sel };
+  window.__dsnsim = { clock, view, craft, links, antennas, select, tour, sel, jump };
   requestAnimationFrame(frame);
 }).catch((err) => {
   const el = $('error');
