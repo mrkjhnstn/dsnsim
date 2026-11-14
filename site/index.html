@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DSN Now &amp; Next — dsnsim</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="labels"></div>
+
+<header id="topbar">
+  <div class="brand">DEEP SPACE NETWORK <span>schedule view</span></div>
+  <div class="clock">
+    <span id="live" class="badge">LIVE</span>
+    <span id="date"></span>
+    <span id="time"></span>
+    <span class="utc">UTC</span>
+  </div>
+  <nav id="views">
+    <button data-view="ALL" class="on">ALL</button>
+    <button data-view="GDSCC">GOLDSTONE</button>
+    <button data-view="CDSCC">CANBERRA</button>
+    <button data-view="MDSCC">MADRID</button>
+    <button id="fs" title="Full screen (F)">⛶</button>
+  </nav>
+</header>
+
+<aside id="board"></aside>
+
+<footer id="controls">
+  <div class="buttons">
+    <button id="rev" title="Reverse">◀◀</button>
+    <button id="play" title="Play / pause (space)">❚❚</button>
+    <span class="sep"></span>
+    <button class="rate on" data-rate="1">1×</button>
+    <button class="rate" data-rate="60">1 min/s</button>
+    <button class="rate" data-rate="600">10 min/s</button>
+    <button class="rate" data-rate="3600">1 h/s</button>
+    <span class="sep"></span>
+    <button id="now" title="Snap to current time (N)">NOW</button>
+  </div>
+  <div class="timeline">
+    <span id="tmin"></span>
+    <div class="track">
+      <div id="nowtick" title="Current time"></div>
+      <input id="slider" type="range" min="0" max="1000" step="1" value="0">
+    </div>
+    <span id="tmax"></span>
+  </div>
+  <div id="status"></div>
+</footer>
+
+<div id="error" hidden></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

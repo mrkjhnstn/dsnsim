@@ -2,7 +2,7 @@
 
 A visualizer for the Deep Space Network: Earth, the three DSN complexes, and the links to scheduled tracks, driven by the public DSN schedule and spacecraft trajectories.
 
-Status: backend pipeline in place; viewer not started. See [docs/plan.md](docs/plan.md) and [docs/feasibility.md](docs/feasibility.md).
+Status: backend pipeline and viewer core in place (globe, complexes, time controls, links). Spacecraft fan-out, info cards and auto-tour are still to come. See [docs/plan.md](docs/plan.md) and [docs/feasibility.md](docs/feasibility.md).
 
 ## Backend
 
@@ -31,6 +31,24 @@ Useful options:
 - `--skip-ephem` refreshes the schedule only.
 
 Trajectory sources are set per mission in [`dsnsim/config.py`](dsnsim/config.py). A mission whose source fails is reported and either falls back to a stand-in or is left out; it never stops the build.
+
+## Viewer
+
+Static files in `site/`; no build step. After a backend run:
+
+```bash
+python -m http.server -d site 8000
+# open http://localhost:8000
+```
+
+- **Timeline:** scrub, play/pause (space), reverse, speed steps, NOW (N).
+- **Views:** ALL, GOLDSTONE, CANBERRA, MADRID (keys 1–4). A complex view follows the Earth's rotation and dims other links.
+- **Full screen:** F.
+- **URL options:** `?t=2026-11-14T12:00:00Z` starts at a fixed time; `&view=MDSCC` starts on a complex; `&rate=600` sets the speed.
+
+The viewer reloads the data files every 5 minutes, so it picks up hourly backend runs without a refresh.
+
+Display conventions: directions from Earth's centre are true; distance is logarithmic. The antennas of a complex are fanned out in a row so each is visible. Links leave the antenna vertically and bend toward the spacecraft.
 
 ## Tests
 

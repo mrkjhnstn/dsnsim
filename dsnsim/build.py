@@ -123,7 +123,10 @@ def elevation_report(activities: list[dict], objects: dict) -> list[dict]:
             continue
         a["el"] = els  # elevation (deg) at BOT, mid-track, EOT
         if els[1] < 0:
+            # Not a real pass (e.g. a ground connectivity test booked under the mission):
+            # show the antenna as busy, draw no link. Still reported in meta.json.
             low.append({k: a[k] for k in ("id", "user", "dss", "activity", "bot", "eot", "assoc_type", "el")})
+            a["kind"], a["uplink"], a["below_horizon"] = "busy", [], True
     return low
 
 
