@@ -683,7 +683,12 @@ function frame(nowMs) {
     setTime(w);
   } else if (clock.playing) {
     setTime(clock.t + dt * clock.rate * clock.dir);
-    if (clock.t <= tMin || clock.t >= tMax) { clock.playing = false; syncButtons(); }
+    if (clock.t <= tMin || clock.t >= tMax) {
+      if (clock.rate > 1) {   // faster than real time: loop back to now and keep going at the same pace
+        const w = wallNow();
+        setTime(w > tMin && w < tMax ? w : generated);
+      } else { clock.playing = false; syncButtons(); }
+    }
   }
   const t = clock.t;
 

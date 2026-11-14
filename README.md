@@ -46,7 +46,7 @@ Trajectory sources are set per mission in [`dsnsim/config.py`](dsnsim/config.py)
 
 Static files in `site/`; no build step. `python3 -m dsnsim.serve` serves it and keeps the data fresh; any static web server pointed at `site/` also works after a backend run.
 
-- **Timeline:** scrub, play/pause (space), reverse, speed steps, NOW (N).
+- **Timeline:** scrub, play/pause (space), reverse, speed steps, NOW (N). Faster than real time, playback loops: on reaching either end it returns to the current time and continues at the same speed.
 - **Views:** ALL, GOLDSTONE, CANBERRA, MADRID (keys 1–4). A complex view follows the Earth's rotation and dims other links.
 - **Details:** hover or click a spacecraft or antenna (or a status-board row) for a card with range, light time, current and next activity. Esc closes it.
 - **Timeline context:** with a card pinned, the scrub bar shows that antenna's, spacecraft's or planet's passes (cyan tracking, blue setup, gray teardown, amber busy). PREV PASS / NEXT PASS (keys `[` and `]`) jump between them.
