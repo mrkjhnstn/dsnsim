@@ -18,6 +18,10 @@ const REGION_COLORS = { heo: 0x9be7ff, l1l2: 0xb8f5c5, lunar: 0xdddddd, mars: 0x
 const RINGS = [
   [42164, 'GEO'], [384400, 'Moon'], [1.5e6, 'L1 / L2'], [1.496e8, '1 AU'], [1.496e9, '10 AU'], [1.496e10, '100 AU'],
 ];
+const REGION_NAME = { heo: 'High Earth orbit', l1l2: 'Sun–Earth L1/L2', lunar: 'Lunar', mars: 'Mars', helio: 'Heliocentric', outer: 'Outer solar system' };
+// Spacecraft this close (km) to a body are fanned out in a ring around its marker.
+const HOSTS = { moon: 7e4, mars: 1.5e5, jupiter: 1.2e7 };
+const C_KM_S = 299792.458;
 const COMPLEX_LABEL = { GDSCC: 'GOLDSTONE', CDSCC: 'CANBERRA', MDSCC: 'MADRID' };
 
 const $ = (id) => document.getElementById(id);
@@ -162,6 +166,7 @@ const craft = new Map();          // key -> {mesh, name, pos, visible, active}
 const bodies = new Map();
 const links = new Map();          // activity id -> link objects
 const dotGeo = new THREE.SphereGeometry(1, 16, 12);
+const actsByUser = new Map();   // mission -> its tracks, sorted by start
 
 function trackFor(key) {
   let o = ephem.objects[key];
@@ -198,6 +203,7 @@ function indexData() {
   tMin = generated - BACK_S; tMax = generated + FWD_S;
   buildAntennas();
   for (const a of antennas.values()) a.acts = [];
+  actsByUser.clear();
   for (const act of schedule.activities) {
     const a = antennas.get(act.dss);
     if (!a) continue;
@@ -205,12 +211,13 @@ function indexData() {
     act.up = (act.uplink || []).map(([s, e]) => [Date.parse(s) / 1000, Date.parse(e) / 1000]);
     act.hasTraj = act.kind === 'track' && !!trackFor(act.user);
     a.acts.push(act);
+    if (act.kind === 'track') (actsByUser.get(act.user) ?? actsByUser.set(act.user, []).get(act.user)).push(act);
     if (act.hasTraj && !craft.has(act.user)) {
       const m = ephem.missions[act.user] || { name: act.user, region: 'helio' };
       const mesh = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color: REGION_COLORS[m.region] || 0xffffff }));
       mesh.scale.setScalar(0.022);
       scene.add(mesh);
-      craft.set(act.user, { key: act.user, name: m.name, mesh, pos: mesh.position, visible: false, active: false });
+      craft.set(act.user, { key: act.user, name: m.name, region: m.region, mesh, pos: mesh.position, km: new THREE.Vector3(), visible: false, active: false, host: null, sx: 0, sy: 0, onScreen: false });
     }
   }
   const bodyStyle = { moon: [0.06, 0x9a9a9a], mars: [0.075, 0xc8643c], jupiter: [0.12, 0xc9a877], sun: [0.2, 0xffe9a8] };
@@ -219,7 +226,7 @@ function indexData() {
     const mesh = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color }));
     mesh.scale.setScalar(size);
     scene.add(mesh);
-    bodies.set(key, { key, mesh, label: makeLabel('body', ephem.bodies[key]?.name || key) });
+    bodies.set(key, { key, size, mesh, km: new THREE.Vector3(), name: ephem.bodies[key]?.name || key, label: makeLabel('body', ephem.bodies[key]?.name || key) });
   }
   $('tmin').textContent = `${fmtDate(tMin).slice(5)} ${fmtTime(tMin).slice(0, 5)}`;
   $('tmax').textContent = `${fmtDate(tMax).slice(5)} ${fmtTime(tMax).slice(0, 5)}`;
@@ -273,11 +280,22 @@ function viewTarget(key, out) {
   return out.copy(u).addScaledVector(east, 0.45).addScaledVector(Y, u.y > 0 ? -0.15 : 0.15).normalize().multiplyScalar(4.3);
 }
 function setView(key) {
+  if (view.focus === key && !view.fly && key !== 'ALL') return;
   view.focus = key;
   view.fly = { t0: performance.now(), from: camera.position.clone(), dur: 1800, to: key === 'ALL' ? viewTarget('ALL', new THREE.Vector3()) : null };
   document.querySelectorAll('#views [data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === key));
 }
-document.querySelectorAll('#views [data-view]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
+document.querySelectorAll('#views [data-view]').forEach((b) => b.addEventListener('click', () => { setTour(false); setView(b.dataset.view); }));
+// Auto-tour for unattended display: cycles ALL -> each complex.
+const TOUR = [['ALL', 25], ['GDSCC', 15], ['CDSCC', 15], ['MDSCC', 15]];
+const tour = { on: false, i: 0, next: 0 };
+function setTour(on) {
+  tour.on = on; tour.i = 0; tour.next = performance.now() + TOUR[0][1] * 1000;
+  document.body.classList.toggle('tour', on);
+  if (on) setView('ALL');
+}
+$('tour').addEventListener('click', () => setTour(!tour.on));
+canvas.addEventListener('pointerdown', () => { if (tour.on) setTour(false); });
 $('fs').addEventListener('click', toggleFs);
 function toggleFs() { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
 addEventListener('keydown', (e) => {
@@ -286,7 +304,9 @@ addEventListener('keydown', (e) => {
   if (k === ' ') { e.preventDefault(); $('play').click(); }
   else if (k === 'n') goLive();
   else if (k === 'f') toggleFs();
-  else if ('1234'.includes(k)) setView(['ALL', 'GDSCC', 'CDSCC', 'MDSCC'][+k - 1]);
+  else if (k === 't') setTour(!tour.on);
+  else if (k === 'escape') select(null);
+  else if ('1234'.includes(k)) { setTour(false); setView(['ALL', 'GDSCC', 'CDSCC', 'MDSCC'][+k - 1]); }
 });
 
 // ---------------------------------------------------------------- links
@@ -331,13 +351,16 @@ function updateLink(l, S, phase, state, uplinkOn, dim) {
   // Write segment endpoints in place (avoids reallocating GPU buffers every frame).
   const arr = l.geo.attributes.instanceStart.data.array;
   for (let i = 0; i < CURVE_N; i++) for (let k = 0; k < 6; k++) arr[i * 6 + k] = l.pts[i * 3 + k];
+  const tracking = state === 'track';
+  if (!tracking) {   // dashed: collapse every other segment
+    for (let i = 1; i < CURVE_N; i += 2) for (let k = 0; k < 3; k++) arr[i * 6 + 3 + k] = arr[i * 6 + k];
+  }
   l.geo.attributes.instanceStart.data.needsUpdate = true;
 
-  const tracking = state === 'track';
   const big = l.ant.cfg.size_m >= 70;
   l.mat.color.setHex(tracking ? COLORS.track : COLORS.setup);
-  l.mat.linewidth = tracking ? (big ? 4.2 : 2.4) : 1.2;
-  l.mat.opacity = (tracking ? 0.95 : 0.35) * dim;
+  l.mat.linewidth = tracking ? (big ? 4.2 : 2.4) : 1.6;
+  l.mat.opacity = (tracking ? 0.95 : state === 'setup' ? 0.7 : 0.4) * dim;
   l.down.visible = tracking; l.up.visible = tracking && uplinkOn;
   l.down.material.opacity = l.up.material.opacity = dim;
   if (tracking) {
@@ -392,10 +415,12 @@ const scLabels = [];   // pooled labels for spacecraft clusters
 function updateCraftLabels() {
   const items = [];
   for (const c of craft.values()) {
+    c.onScreen = false;
     if (!c.visible) continue;
     proj.copy(c.pos).project(camera);
     if (proj.z > 1 || proj.z < -1 || occluded(c.pos)) continue;
-    items.push({ c, x: (proj.x * 0.5 + 0.5) * innerWidth, y: (-proj.y * 0.5 + 0.5) * innerHeight });
+    c.sx = (proj.x * 0.5 + 0.5) * innerWidth; c.sy = (-proj.y * 0.5 + 0.5) * innerHeight; c.onScreen = true;
+    items.push({ c, x: c.sx, y: c.sy });
   }
   // Greedy clustering: spacecraft that overlap on screen share one label.
   items.sort((a, b) => (b.c.active - a.c.active) || a.c.key.localeCompare(b.c.key));
@@ -417,7 +442,7 @@ function updateCraftLabels() {
   for (let i = clusters.length; i < scLabels.length; i++) scLabels[i].style.display = 'none';
 }
 
-let boardAt = 0;
+let boardAt = 0, boardHtml = '';
 function updateBoard(states) {
   const now = performance.now();
   if (now - boardAt < 250) return;
@@ -432,11 +457,128 @@ function updateBoard(states) {
       const who = main.map((x) => (x.kind === 'track' || !['DSN', 'DSS'].includes(x.user) ? x.user : x.activity)).join(' · ');
       const up = main.some((x) => x.upNow);
       const st = { idle: '', busy: 'BUSY', setup: 'SETUP', teardown: 'TEARDOWN', track: up ? 'UP + DOWN' : 'DOWN' }[state];
-      html += `<div class="row ${state}${up ? ' up' : ''}${dimmed}"><span class="dot"></span><span class="dss"><b>${a.dss}</b> ${a.cfg.size_m}</span><span class="who" title="${main.map((x) => x.activity).join(', ')}">${who || '—'}</span><span class="st">${st}</span></div>`;
+      html += `<div data-dss="${a.dss}" class="row ${state}${up ? ' up' : ''}${dimmed}"><span class="dot"></span><span class="dss"><b>${a.dss}</b> ${a.cfg.size_m}</span><span class="who" title="${main.map((x) => x.activity).join(', ')}">${who || '—'}</span><span class="st">${st}</span></div>`;
     }
   }
-  html += `<div class="legend"><i style="background:#4fd8ff"></i>tracking &nbsp; <i style="background:#ffb347"></i>uplink<br><i style="background:#7aa2ff"></i>setup / teardown &nbsp; <i style="background:#f0a030"></i>busy<br>distance scale is logarithmic</div>`;
-  $('board').innerHTML = html;
+  html += `<div class="legend"><i style="background:#4fd8ff"></i>tracking &nbsp; <i style="background:#ffb347"></i>uplink<br><i style="background:#7aa2ff"></i>setup / teardown &nbsp; <i style="background:#f0a030"></i>busy<br>distance scale is logarithmic<br>click a spacecraft or antenna for details</div>`;
+  if (html !== boardHtml) { boardHtml = html; $('board').innerHTML = html; }   // rebuild only on change, so rows stay clickable
+}
+$('board').addEventListener('click', (e) => {
+  const row = e.target.closest('[data-dss]');
+  if (row) select({ type: 'ant', ref: antennas.get(+row.dataset.dss) });
+});
+
+// ---------------------------------------------------------------- picking and info card
+const sel = { pinned: null, hover: null };
+const same = (a, b) => (a && b ? a.type === b.type && a.ref === b.ref : a === b);
+function select(obj) { sel.pinned = obj; cardAt = 0; }
+function pickAt(x, y) {
+  let best = null, bd = 16 * 16;
+  for (const c of craft.values()) {
+    if (!c.onScreen) continue;
+    const d = (c.sx - x) ** 2 + (c.sy - y) ** 2;
+    if (d < bd) { bd = d; best = { type: 'craft', ref: c }; }
+  }
+  for (const a of antennas.values()) {
+    if (!a.onScreen) continue;
+    const d = (a.sx - x) ** 2 + (a.sy - y) ** 2;
+    if (d < bd) { bd = d; best = { type: 'ant', ref: a }; }
+  }
+  return best;
+}
+let downAt = null;
+canvas.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+canvas.addEventListener('pointermove', (e) => {
+  if (e.buttons) { sel.hover = null; return; }
+  const h = pickAt(e.clientX, e.clientY);
+  if (!same(h, sel.hover)) { sel.hover = h; cardAt = 0; }
+  canvas.classList.toggle('pick', !!h);
+});
+canvas.addEventListener('pointerleave', () => { sel.hover = null; });
+canvas.addEventListener('pointerup', (e) => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 4) return;
+  select(pickAt(e.clientX, e.clientY));
+});
+$('card').addEventListener('click', (e) => { if (e.target.classList.contains('close')) select(null); });
+
+const esc = (x) => String(x).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const hm = (t) => `${fmtDate(t).slice(5)} ${fmtTime(t).slice(0, 5)}`;
+function rel(dt) {
+  const m = Math.round(Math.abs(dt) / 60);
+  const txt = m < 60 ? `${m} min` : m < 2880 ? `${Math.floor(m / 60)} h ${pad(m % 60)} min` : `${(m / 1440).toFixed(1)} d`;
+  return dt >= 0 ? `in ${txt}` : `${txt} ago`;
+}
+function fmtRange(km) {
+  if (km < 1e6) return `${Math.round(km).toLocaleString('en-US')} km`;
+  if (km < 1.496e7) return `${(km / 1e6).toFixed(2)} million km`;
+  return `${(km / 1.496e8).toFixed(3)} AU`;
+}
+function fmtLight(sec) {
+  if (sec < 120) return `${sec.toFixed(sec < 10 ? 2 : 1)} s`;
+  if (sec < 7200) return `${(sec / 60).toFixed(1)} min`;
+  return `${(sec / 3600).toFixed(2)} h`;
+}
+const STATE_TXT = { setup: 'setup', track: 'tracking', teardown: 'teardown', busy: 'busy' };
+function actState(act, t) {
+  if (t < act.t[0] || t >= act.t[3]) return null;
+  if (act.kind !== 'track') return 'busy';
+  return t < act.t[1] ? 'setup' : t < act.t[2] ? 'track' : 'teardown';
+}
+function actLine(act, t, withUser) {
+  const st = actState(act, t), up = st === 'track' && act.up.some(([a, b]) => t >= a && t < b);
+  const who = withUser ? `<b>${esc(act.user)}</b> ${esc(ephem.missions[act.user]?.name || '')}<br>` : `<b>DSS-${act.dss}</b> `;
+  let h = `<div class="item">${who}<span class="${st === 'track' ? (up ? 'up' : 'track') : st === 'busy' ? 'busy' : 'setup'}">${STATE_TXT[st]}${st === 'track' ? (up ? ' · uplink + downlink' : ' · downlink') : ''}</span>`;
+  h += `<br>${esc(act.activity)}${act.assoc_type && act.assoc_type !== 'SSPA' ? ` · ${act.assoc_type}` : ''}`;
+  if (act.kind === 'track') h += `<br>BOT ${hm(act.t[1])} · EOT ${hm(act.t[2])} (${rel(act.t[2] - t)})`;
+  else h += `<br>${hm(act.t[0])} to ${hm(act.t[3])} (ends ${rel(act.t[3] - t)})`;
+  if (act.below_horizon) h += `<br><span class="busy">no spacecraft in view; shown as busy</span>`;
+  else if (act.kind === 'track' && !act.hasTraj) h += `<br><span class="busy">no trajectory available</span>`;
+  else if (act.el) h += `<br>elevation BOT / mid / EOT: ${act.el.map((x) => (x == null ? '–' : `${Math.round(x)}°`)).join(' / ')}`;
+  return `${h}</div>`;
+}
+function nextLine(act, t, withUser) {
+  const lead = withUser ? `<b>${esc(act.user)}</b> ${esc(act.activity)}` : `<b>DSS-${act.dss}</b> ${esc(act.activity)}`;
+  const when = act.kind === 'track' ? `BOT ${hm(act.t[1])} (${rel(act.t[1] - t)})` : `${hm(act.t[0])} (${rel(act.t[0] - t)})`;
+  return `<div class="item">${lead}<br>${when}</div>`;
+}
+function cardHtml(obj, t) {
+  let h = '';
+  if (obj.type === 'craft') {
+    const c = obj.ref, acts = actsByUser.get(c.key) || [], o = ephem.objects[c.key];
+    h += `<h2>${esc(c.name)}</h2><div class="sub">${esc(c.key)} · ${REGION_NAME[c.region] || ''}</div>`;
+    if (c.visible) {
+      const km = c.km.length();
+      h += `<div class="kv"><span>Range</span><span>${fmtRange(km)}</span><span>Light time</span><span>${fmtLight(km / C_KM_S)} one way</span></div>`;
+    }
+    if (o && o.alias) h += `<div class="note">Position is a stand-in: ${esc(ephem.bodies[o.alias]?.name || o.alias)}</div>`;
+    const now = acts.filter((a) => actState(a, t));
+    h += `<h4>NOW</h4>${now.length ? now.map((a) => actLine(a, t, false)).join('') : '<div class="item">not scheduled</div>'}`;
+    const nx = acts.find((a) => a.t[0] > t);
+    if (nx) h += `<h4>NEXT</h4>${nextLine(nx, t, false)}`;
+  } else {
+    const a = obj.ref;
+    h += `<h2>DSS-${a.dss}</h2><div class="sub">${a.cfg.size_m} m · ${esc(schedule.complexes[a.complex].name)}</div>`;
+    const now = a.acts.filter((x) => actState(x, t));
+    h += `<h4>NOW</h4>${now.length ? now.map((x) => actLine(x, t, true)).join('') : '<div class="item">idle — nothing scheduled</div>'}`;
+    const nx = a.acts.filter((x) => x.t[0] > t).sort((p, q) => p.t[0] - q.t[0])[0];
+    if (nx) h += `<h4>NEXT</h4>${nextLine(nx, t, true)}`;
+  }
+  return h;
+}
+let cardAt = 0, cardHtmlLast = '';
+function updateCard(t) {
+  const obj = sel.pinned || sel.hover, card = $('card'), ring = $('sel');
+  if (!obj) { card.hidden = true; ring.style.display = 'none'; return; }
+  const r = obj.ref;
+  ring.style.display = r.onScreen ? 'block' : 'none';
+  if (r.onScreen) ring.style.transform = `translate(${r.sx.toFixed(1)}px, ${r.sy.toFixed(1)}px)`;
+  const now = performance.now();
+  if (now - cardAt < 500) return;
+  cardAt = now;
+  card.hidden = false;
+  card.classList.toggle('pinned', !!sel.pinned);
+  const html = (sel.pinned ? '<button class="close" title="Close (Esc)">×</button>' : '') + cardHtml(obj, t);
+  if (html !== cardHtmlLast) { cardHtmlLast = html; card.innerHTML = html; }
 }
 
 // ---------------------------------------------------------------- main loop
@@ -480,20 +622,51 @@ function frame(nowMs) {
     camera.position.copy(view.fly.from).normalize().lerp(tmpV.normalize(), e).normalize().multiplyScalar(r);
     if (u >= 1) view.fly = null;
   }
+  if (tour.on && nowMs > tour.next) {
+    tour.i = (tour.i + 1) % TOUR.length;
+    tour.next = nowMs + TOUR[tour.i][1] * 1000;
+    setView(TOUR[tour.i][0]);
+  }
+  controls.autoRotate = tour.on && view.focus === 'ALL' && !view.fly;
+  controls.autoRotateSpeed = 0.35;
   controls.update();
 
   // Bodies and spacecraft
   for (const b of bodies.values()) {
     const tr = trackFor(b.key);
-    b.mesh.visible = !!(tr && interp(tr, t, b.mesh.position));
-    if (b.mesh.visible) scaleKm(b.mesh.position);
+    b.mesh.visible = !!(tr && interp(tr, t, b.km));
+    if (b.mesh.visible) scaleKm(b.mesh.position.copy(b.km));
   }
+  const groups = new Map();
   for (const c of craft.values()) {
     const tr = trackFor(c.key);
-    c.visible = !!(tr && interp(tr, t, c.pos));
-    if (c.visible) scaleKm(c.pos);
+    c.visible = !!(tr && interp(tr, t, c.km));
     c.mesh.visible = c.visible;
     c.active = false;
+    c.host = null;
+    if (!c.visible) continue;
+    scaleKm(c.pos.copy(c.km));
+    for (const key in HOSTS) {
+      const b = bodies.get(key);
+      if (b && b.mesh.visible && c.km.distanceTo(b.km) < HOSTS[key]) {
+        c.host = b;
+        (groups.get(b) ?? groups.set(b, []).get(b)).push(c);
+        break;
+      }
+    }
+  }
+  // Orbiters and landers sit inside their body's marker at this scale:
+  // fan them out in a screen-facing ring around it.
+  if (groups.size) {
+    const right = tmpV.setFromMatrixColumn(camera.matrixWorld, 0), up = tmpV2.setFromMatrixColumn(camera.matrixWorld, 1);
+    for (const [b, list] of groups) {
+      list.sort((p, q) => p.key.localeCompare(q.key));
+      const rr = Math.max(b.size * 1.9, 0.045 * camera.position.distanceTo(b.mesh.position));
+      list.forEach((c, i) => {
+        const a = Math.PI / 2 - (i / list.length) * Math.PI * 2;
+        c.pos.copy(b.mesh.position).addScaledVector(right, rr * Math.cos(a)).addScaledVector(up, rr * Math.sin(a));
+      });
+    }
   }
 
   // Antennas and links
@@ -532,14 +705,17 @@ function frame(nowMs) {
     place(cx.label, tmpV, 10, -26);
   }
   for (const a of antennas.values()) {
-    if (camDist > 7) { a.label.style.display = 'none'; continue; }
     a.label.className = `lbl ant ${a.state === 'track' ? 'track' : a.state === 'busy' ? 'busy' : ''}`;
-    place(a.label, a.world, -6, a.labelDy);
+    const xy = place(a.label, a.world, -6, a.labelDy);
+    a.onScreen = !!xy;
+    if (xy) { a.sx = xy[0]; a.sy = xy[1]; }
+    if (camDist > 7) a.label.style.display = 'none';
   }
   for (const b of bodies.values()) b.mesh.visible ? place(b.label, b.mesh.position, -4, 9) : (b.label.style.display = 'none');
   for (const r of ringLabels) place(r.el, r.pos, 4, 2);
   updateCraftLabels();
   updateBoard(states);
+  updateCard(t);
 
   // HUD
   $('date').textContent = `${fmtDate(t)} · ${fmtDoy(t)}`;
@@ -564,8 +740,9 @@ loadData().then(() => {
   else if (wallNow() >= tMin && wallNow() <= tMax) goLive();
   else { clock.live = false; setTime(generated); }
   if (params.get('view')) setView(params.get('view'));
+  if (params.has('tour')) setTour(true);
   syncButtons();
-  window.__dsnsim = { clock, view, craft, links, antennas };
+  window.__dsnsim = { clock, view, craft, links, antennas, select, tour, sel };
   requestAnimationFrame(frame);
 }).catch((err) => {
   const el = $('error');

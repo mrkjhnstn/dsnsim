@@ -88,3 +88,23 @@ button.on { background: rgba(79, 216, 255, 0.18); border-color: var(--track); co
   .brand span { display: none; }
   #board { width: 210px; }
 }
+
+/* Info card and selection */
+#card { position: fixed; right: 18px; top: 64px; width: 300px; font: 11px var(--mono); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; backdrop-filter: blur(6px); }
+#card[hidden] { display: none; }
+#card.pinned { border-color: rgba(160, 200, 255, 0.6); }
+#card h2 { margin: 0; font: 600 15px var(--sans); letter-spacing: 0.04em; color: #fff; padding-right: 20px; }
+#card .sub { color: var(--dim); margin: 2px 0 8px; }
+#card h4 { margin: 10px 0 3px; font: 600 9.5px var(--sans); letter-spacing: 0.16em; color: var(--dim); }
+#card .kv { display: grid; grid-template-columns: 92px 1fr; gap: 2px 8px; }
+#card .kv span:nth-child(odd) { color: var(--dim); }
+#card .item { padding: 3px 0; line-height: 1.5; }
+#card .item b { color: #fff; font-weight: 600; }
+#card .track { color: var(--track); } #card .up { color: var(--uplink); } #card .setup { color: var(--setup); } #card .busy { color: var(--busy); }
+#card .note { color: var(--dim); font-style: italic; margin-top: 6px; }
+#card .close { position: absolute; right: 8px; top: 6px; padding: 2px 7px; border: 0; background: none; font-size: 14px; color: var(--dim); }
+#sel { position: fixed; left: 0; top: 0; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 1.5px solid #fff; border-radius: 50%; pointer-events: none; display: none; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
+#board .row { cursor: pointer; }
+#board .row:hover .dss b { text-decoration: underline; }
+#scene.pick { cursor: pointer; }
+body.tour #tour { background: rgba(69, 224, 124, 0.2); border-color: #45e07c; color: #fff; }

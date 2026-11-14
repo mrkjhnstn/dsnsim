@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DSN Now &amp; Next — dsnsim</title>
+<title>DSN Now &amp; Next</title>
 <link rel="stylesheet" href="css/style.css">
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.js" } }
@@ -14,7 +14,7 @@
 <div id="labels"></div>
 
 <header id="topbar">
-  <div class="brand">DEEP SPACE NETWORK <span>schedule view</span></div>
+  <div class="brand">DEEP SPACE NETWORK <span>Now &amp; Next</span></div>
   <div class="clock">
     <span id="live" class="badge">LIVE</span>
     <span id="date"></span>
@@ -26,11 +26,14 @@
     <button data-view="GDSCC">GOLDSTONE</button>
     <button data-view="CDSCC">CANBERRA</button>
     <button data-view="MDSCC">MADRID</button>
+    <button id="tour" title="Auto-tour: cycle through the views (T)">TOUR</button>
     <button id="fs" title="Full screen (F)">⛶</button>
   </nav>
 </header>
 
 <aside id="board"></aside>
+<aside id="card" hidden></aside>
+<div id="sel"></div>
 
 <footer id="controls">
   <div class="buttons">
