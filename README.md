@@ -50,7 +50,7 @@ python -m http.server -d site 8000
 
 The viewer reloads the data files every 5 minutes, so it picks up hourly backend runs without a refresh.
 
-Display conventions: directions from Earth's centre are true; distance is logarithmic. The antennas of a complex are fanned out in a row so each is visible. Links leave the antenna vertically and bend toward the spacecraft. Orbiters and landers are fanned out in a ring around the Moon, Mars and Jupiter. Setup and teardown links are dashed.
+Display conventions: directions from Earth's centre are true; distance is logarithmic. The antennas of a complex are fanned out in a row so each is visible. Links leave the antenna vertically and bend toward the spacecraft. Spacecraft at the Moon, Mars and Jupiter are drawn at the body, whose label lists who is in contact; click the body to fan them out in a ring and list them in a card. During setup a blue dashed line extends from the antenna, reaching the spacecraft at BOT; during teardown a gray dotted line retracts to the antenna.
 
 ## Tests
 

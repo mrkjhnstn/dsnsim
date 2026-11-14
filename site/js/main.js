@@ -13,7 +13,7 @@ const BACK_S = 86400, FWD_S = 7 * 86400;
 const CURVE_N = 32;            // segments per link
 const LINK_LIFT = 0.3;         // links leave the antenna vertically, then bend to the target
 const OBLIQUITY = 23.4393 * Math.PI / 180;
-const COLORS = { track: 0x4fd8ff, uplink: 0xffb347, setup: 0x7aa2ff, busy: 0xf0a030, idle: 0x4a566b };
+const COLORS = { track: 0x4fd8ff, uplink: 0xffb347, setup: 0x7aa2ff, teardown: 0x9aa4b5, busy: 0xf0a030, idle: 0x4a566b };
 const REGION_COLORS = { heo: 0x9be7ff, l1l2: 0xb8f5c5, lunar: 0xdddddd, mars: 0xff9a76, helio: 0xffe08a, outer: 0xd0b3ff };
 const RINGS = [
   [42164, 'GEO'], [384400, 'Moon'], [1.5e6, 'L1 / L2'], [1.496e8, '1 AU'], [1.496e9, '10 AU'], [1.496e10, '100 AU'],
@@ -226,7 +226,7 @@ function indexData() {
     const mesh = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color }));
     mesh.scale.setScalar(size);
     scene.add(mesh);
-    bodies.set(key, { key, size, mesh, km: new THREE.Vector3(), name: ephem.bodies[key]?.name || key, label: makeLabel('body', ephem.bodies[key]?.name || key) });
+    bodies.set(key, { key, size, mesh, km: new THREE.Vector3(), name: ephem.bodies[key]?.name || key, members: [], expanded: false, sx: 0, sy: 0, onScreen: false, label: makeLabel('body', ephem.bodies[key]?.name || key) });
   }
   $('tmin').textContent = `${fmtDate(tMin).slice(5)} ${fmtTime(tMin).slice(0, 5)}`;
   $('tmax').textContent = `${fmtDate(tMax).slice(5)} ${fmtTime(tMax).slice(0, 5)}`;
@@ -344,23 +344,31 @@ function bezier(A, C, S, u, out) {
   const w = 1 - u;
   return out.set(w * w * A.x + 2 * w * u * C.x + u * u * S.x, w * w * A.y + 2 * w * u * C.y + u * u * S.y, w * w * A.z + 2 * w * u * C.z + u * u * S.z);
 }
-function updateLink(l, S, phase, state, uplinkOn, dim) {
+function updateLink(l, S, phase, state, uplinkOn, dim, frac) {
+  // frac: how much of the path is drawn, from the antenna outward. 1 while tracking;
+  // grows 0 -> 1 through setup; shrinks 1 -> 0 through teardown.
   const A = l.ant.world;
   P1.copy(A).multiplyScalar(1 + LINK_LIFT);
   for (let i = 0; i <= CURVE_N; i++) bezier(A, P1, S, i / CURVE_N, bz).toArray(l.pts, i * 3);
   // Write segment endpoints in place (avoids reallocating GPU buffers every frame).
   const arr = l.geo.attributes.instanceStart.data.array;
-  for (let i = 0; i < CURVE_N; i++) for (let k = 0; k < 6; k++) arr[i * 6 + k] = l.pts[i * 3 + k];
   const tracking = state === 'track';
-  if (!tracking) {   // dashed: collapse every other segment
-    for (let i = 1; i < CURVE_N; i += 2) for (let k = 0; k < 3; k++) arr[i * 6 + 3 + k] = arr[i * 6 + k];
+  const dashFill = tracking ? 1 : state === 'setup' ? 0.55 : 0.18;   // setup: dashes; teardown: dots
+  for (let i = 0; i < CURVE_N; i++) {
+    const o = i * 6, p = i * 3;
+    const shown = tracking || (i + 0.5) / CURVE_N <= Math.max(frac, 1.5 / CURVE_N);
+    const f = shown ? dashFill : 0;
+    for (let k = 0; k < 3; k++) {
+      arr[o + k] = l.pts[p + k];
+      arr[o + 3 + k] = l.pts[p + k] + f * (l.pts[p + 3 + k] - l.pts[p + k]);
+    }
   }
   l.geo.attributes.instanceStart.data.needsUpdate = true;
 
   const big = l.ant.cfg.size_m >= 70;
-  l.mat.color.setHex(tracking ? COLORS.track : COLORS.setup);
-  l.mat.linewidth = tracking ? (big ? 4.2 : 2.4) : 1.6;
-  l.mat.opacity = (tracking ? 0.95 : state === 'setup' ? 0.7 : 0.4) * dim;
+  l.mat.color.setHex(tracking ? COLORS.track : state === 'setup' ? COLORS.setup : COLORS.teardown);
+  l.mat.linewidth = tracking ? (big ? 4.2 : 2.4) : state === 'setup' ? 1.8 : 2.2;
+  l.mat.opacity = (tracking ? 0.95 : 0.8) * dim;
   l.down.visible = tracking; l.up.visible = tracking && uplinkOn;
   l.down.material.opacity = l.up.material.opacity = dim;
   if (tracking) {
@@ -416,7 +424,7 @@ function updateCraftLabels() {
   const items = [];
   for (const c of craft.values()) {
     c.onScreen = false;
-    if (!c.visible) continue;
+    if (!c.visible || (c.host && !c.host.expanded)) continue;
     proj.copy(c.pos).project(camera);
     if (proj.z > 1 || proj.z < -1 || occluded(c.pos)) continue;
     c.sx = (proj.x * 0.5 + 0.5) * innerWidth; c.sy = (-proj.y * 0.5 + 0.5) * innerHeight; c.onScreen = true;
@@ -460,7 +468,7 @@ function updateBoard(states) {
       html += `<div data-dss="${a.dss}" class="row ${state}${up ? ' up' : ''}${dimmed}"><span class="dot"></span><span class="dss"><b>${a.dss}</b> ${a.cfg.size_m}</span><span class="who" title="${main.map((x) => x.activity).join(', ')}">${who || '—'}</span><span class="st">${st}</span></div>`;
     }
   }
-  html += `<div class="legend"><i style="background:#4fd8ff"></i>tracking &nbsp; <i style="background:#ffb347"></i>uplink<br><i style="background:#7aa2ff"></i>setup / teardown &nbsp; <i style="background:#f0a030"></i>busy<br>distance scale is logarithmic<br>click a spacecraft or antenna for details</div>`;
+  html += `<div class="legend"><i style="background:#4fd8ff"></i>tracking &nbsp; <i style="background:#ffb347"></i>uplink<br><i style="background:#f0a030"></i>busy<br><i class="dash" style="color:#7aa2ff"></i>setup: line extends to BOT<br><i class="dot" style="color:#9aa4b5"></i>teardown: line retracts<br>distance scale is logarithmic<br>click a spacecraft, antenna or planet for details</div>`;
   if (html !== boardHtml) { boardHtml = html; $('board').innerHTML = html; }   // rebuild only on change, so rows stay clickable
 }
 $('board').addEventListener('click', (e) => {
@@ -471,7 +479,12 @@ $('board').addEventListener('click', (e) => {
 // ---------------------------------------------------------------- picking and info card
 const sel = { pinned: null, hover: null };
 const same = (a, b) => (a && b ? a.type === b.type && a.ref === b.ref : a === b);
-function select(obj) { sel.pinned = obj; cardAt = 0; }
+function select(obj) {
+  if (obj && obj.type === 'body' && same(obj, sel.pinned)) obj = null;   // clicking an open body again closes it
+  // A body stays expanded while it, or one of its spacecraft, is selected.
+  for (const b of bodies.values()) b.expanded = !!obj && ((obj.type === 'body' && obj.ref === b) || (obj.type === 'craft' && obj.ref.host === b && b.expanded));
+  sel.pinned = obj; cardAt = 0;
+}
 function pickAt(x, y) {
   let best = null, bd = 16 * 16;
   for (const c of craft.values()) {
@@ -483,6 +496,11 @@ function pickAt(x, y) {
     if (!a.onScreen) continue;
     const d = (a.sx - x) ** 2 + (a.sy - y) ** 2;
     if (d < bd) { bd = d; best = { type: 'ant', ref: a }; }
+  }
+  for (const b of bodies.values()) {   // bodies with spacecraft; a spacecraft in an open ring wins if closer
+    if (!b.onScreen) continue;
+    const d = (b.sx - x) ** 2 + (b.sy - y) ** 2;
+    if (d < bd) { bd = d; best = { type: 'body', ref: b }; }
   }
   return best;
 }
@@ -499,7 +517,11 @@ canvas.addEventListener('pointerup', (e) => {
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 4) return;
   select(pickAt(e.clientX, e.clientY));
 });
-$('card').addEventListener('click', (e) => { if (e.target.classList.contains('close')) select(null); });
+$('card').addEventListener('click', (e) => {
+  if (e.target.classList.contains('close')) return select(null);
+  const row = e.target.closest('[data-craft]');
+  if (row && craft.has(row.dataset.craft)) select({ type: 'craft', ref: craft.get(row.dataset.craft) });
+});
 
 const esc = (x) => String(x).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const hm = (t) => `${fmtDate(t).slice(5)} ${fmtTime(t).slice(0, 5)}`;
@@ -527,7 +549,7 @@ function actState(act, t) {
 function actLine(act, t, withUser) {
   const st = actState(act, t), up = st === 'track' && act.up.some(([a, b]) => t >= a && t < b);
   const who = withUser ? `<b>${esc(act.user)}</b> ${esc(ephem.missions[act.user]?.name || '')}<br>` : `<b>DSS-${act.dss}</b> `;
-  let h = `<div class="item">${who}<span class="${st === 'track' ? (up ? 'up' : 'track') : st === 'busy' ? 'busy' : 'setup'}">${STATE_TXT[st]}${st === 'track' ? (up ? ' · uplink + downlink' : ' · downlink') : ''}</span>`;
+  let h = `<div class="item">${who}<span class="${st === 'track' ? (up ? 'up' : 'track') : st === 'busy' ? 'busy' : st}">${STATE_TXT[st]}${st === 'track' ? (up ? ' · uplink + downlink' : ' · downlink') : ''}</span>`;
   h += `<br>${esc(act.activity)}${act.assoc_type && act.assoc_type !== 'SSPA' ? ` · ${act.assoc_type}` : ''}`;
   if (act.kind === 'track') h += `<br>BOT ${hm(act.t[1])} · EOT ${hm(act.t[2])} (${rel(act.t[2] - t)})`;
   else h += `<br>${hm(act.t[0])} to ${hm(act.t[3])} (ends ${rel(act.t[3] - t)})`;
@@ -555,6 +577,19 @@ function cardHtml(obj, t) {
     h += `<h4>NOW</h4>${now.length ? now.map((a) => actLine(a, t, false)).join('') : '<div class="item">not scheduled</div>'}`;
     const nx = acts.find((a) => a.t[0] > t);
     if (nx) h += `<h4>NEXT</h4>${nextLine(nx, t, false)}`;
+  } else if (obj.type === 'body') {
+    const b = obj.ref, km = b.km.length();
+    const rows = b.members.map((c) => {
+      const now = (actsByUser.get(c.key) || []).filter((a) => actState(a, t));
+      const txt = now.length ? now.map((a) => { const st = actState(a, t); const up = st === 'track' && a.up.some(([p, q]) => t >= p && t < q);
+        return `<span class="${st === 'track' ? (up ? 'up' : 'track') : st}">DSS-${a.dss} ${STATE_TXT[st]}${up ? ' · uplink' : ''}</span>`; }).join(', ') : '<span style="color:var(--dim)">not scheduled</span>';
+      return `<div class="item pick" data-craft="${esc(c.key)}"><b>${esc(c.key)}</b> ${esc(c.name)}<br>${txt}</div>`;
+    });
+    const n = b.members.filter((c) => c.active).length;
+    h += `<h2>${esc(b.name)}</h2><div class="sub">${b.members.length} spacecraft · ${n} in contact</div>`;
+    h += `<div class="kv"><span>Range</span><span>${fmtRange(km)}</span><span>Light time</span><span>${fmtLight(km / C_KM_S)} one way</span></div>`;
+    h += `<h4>SPACECRAFT</h4>${rows.join('')}`;
+    h += `<div class="note">${sel.pinned ? 'Click a spacecraft for details. Click the planet again or press Esc to collapse.' : 'Click to expand.'}</div>`;
   } else {
     const a = obj.ref;
     h += `<h2>DSS-${a.dss}</h2><div class="sub">${a.cfg.size_m} m · ${esc(schedule.complexes[a.complex].name)}</div>`;
@@ -638,6 +673,7 @@ function frame(nowMs) {
     if (b.mesh.visible) scaleKm(b.mesh.position.copy(b.km));
   }
   const groups = new Map();
+  for (const b of bodies.values()) b.members = [];
   for (const c of craft.values()) {
     const tr = trackFor(c.key);
     c.visible = !!(tr && interp(tr, t, c.km));
@@ -650,17 +686,22 @@ function frame(nowMs) {
       const b = bodies.get(key);
       if (b && b.mesh.visible && c.km.distanceTo(b.km) < HOSTS[key]) {
         c.host = b;
+        b.members.push(c);
         (groups.get(b) ?? groups.set(b, []).get(b)).push(c);
         break;
       }
     }
   }
-  // Orbiters and landers sit inside their body's marker at this scale:
-  // fan them out in a screen-facing ring around it.
+  // Orbiters and landers sit inside their body's marker at this scale. They are
+  // drawn at the body; clicking the body fans them out in a screen-facing ring.
   if (groups.size) {
     const right = tmpV.setFromMatrixColumn(camera.matrixWorld, 0), up = tmpV2.setFromMatrixColumn(camera.matrixWorld, 1);
     for (const [b, list] of groups) {
       list.sort((p, q) => p.key.localeCompare(q.key));
+      if (!b.expanded) {
+        for (const c of list) { c.pos.copy(b.mesh.position); c.mesh.visible = false; }
+        continue;
+      }
       const rr = Math.max(b.size * 1.9, 0.045 * camera.position.distanceTo(b.mesh.position));
       list.forEach((c, i) => {
         const a = Math.PI / 2 - (i / list.length) * Math.PI * 2;
@@ -677,7 +718,7 @@ function frame(nowMs) {
     const s = antennaState(a, t);
     states.set(a.dss, s);
     a.state = s.state;
-    a.marker.material.color.setHex({ idle: COLORS.idle, busy: COLORS.busy, setup: COLORS.setup, teardown: COLORS.setup, track: COLORS.track }[s.state]);
+    a.marker.material.color.setHex({ idle: COLORS.idle, busy: COLORS.busy, setup: COLORS.setup, teardown: COLORS.teardown, track: COLORS.track }[s.state]);
     const dim = view.focus === 'ALL' || view.focus === a.complex ? 1 : 0.15;
     for (const act of s.acts) {
       if (!act.hasTraj) continue;
@@ -686,7 +727,9 @@ function frame(nowMs) {
       wanted.add(act.id);
       let l = links.get(act.id);
       if (!l) links.set(act.id, (l = makeLink(act, a)));
-      updateLink(l, c.pos, phase, act.state, act.upNow, dim);
+      const frac = act.state === 'setup' ? (t - act.t[0]) / Math.max(act.t[1] - act.t[0], 1)
+        : act.state === 'teardown' ? 1 - (t - act.t[2]) / Math.max(act.t[3] - act.t[2], 1) : 1;
+      updateLink(l, c.pos, phase, act.state, act.upNow, dim, frac);
       if (act.state === 'track') c.active = true;
     }
   }
@@ -711,7 +754,21 @@ function frame(nowMs) {
     if (xy) { a.sx = xy[0]; a.sy = xy[1]; }
     if (camDist > 7) a.label.style.display = 'none';
   }
-  for (const b of bodies.values()) b.mesh.visible ? place(b.label, b.mesh.position, -4, 9) : (b.label.style.display = 'none');
+  for (const b of bodies.values()) {
+    b.onScreen = false;
+    if (!b.mesh.visible) { b.label.style.display = 'none'; continue; }
+    // Collapsed: the body's label lists who is in contact there.
+    let text = b.name, active = false;
+    if (b.members.length && !b.expanded) {
+      const act = b.members.filter((c) => c.active).map((c) => c.key);
+      active = act.length > 0;
+      text = active ? `${b.name.toUpperCase()} · ${act.join(' · ')}${b.members.length > act.length ? `  +${b.members.length - act.length}` : ''}` : `${b.name} (${b.members.length})`;
+    }
+    if (b.label.textContent !== text) b.label.textContent = text;
+    b.label.classList.toggle('active', active);
+    const xy = place(b.label, b.mesh.position, active ? 10 : -4, active ? -7 : 9);
+    if (xy && b.members.length) { b.onScreen = true; b.sx = xy[0]; b.sy = xy[1]; }
+  }
   for (const r of ringLabels) place(r.el, r.pos, 4, 2);
   updateCraftLabels();
   updateBoard(states);
