@@ -14,12 +14,73 @@ Public endpoint (example for Nov 1–5, 2026):
 https://spsweb.fltops.jpl.nasa.gov/rest/ops/schedules/activity/json?startTime=2026-11-01T00:00:00&endTime=2026-11-05T00:00:00
 ```
 
+Sample response: [`example-schedule-json.json`](example-schedule-json.json) (Nov 1–5, 2026; 343 records).
+
+### Structure
+
+Records are in `result.item[]`. Each record is one **service segment** of an activity:
+
+- `pkgid` identifies the activity. One activity often has several records (e.g. a downlink segment and an uplink segment) with the same activity-level fields. Remove duplicates by `pkgid` for the link display.
+- `segid` is unique per record.
+- Fields without the `seg` prefix describe the whole activity; `seg*` fields describe the segment and can cover a shorter window.
+
+All times are **UTC**, in day-of-year format: `YYYY-DDDThh:mm:ss` (e.g. `2026-305T01:00:00`).
+
+### Fields used
+
 | Field | Use |
 |---|---|
-| `projuser` | Mission abbreviation (see table below) |
-| `facility` | DSS antenna number (e.g. 14, 23, 55, 65) |
-| Activity times | Setup start, BOT (beginning of track), EOT (end of track), teardown end. Exact field names still to confirm. |
-| `segservicealias` | Service/link description (e.g. "XR TTC v3", "DDOR GLD/MAD v3") |
+| `projuser` | Mission abbreviation (see inventory below) |
+| `facility` | DSS antenna number (integer) |
+| `starttime` | Setup start |
+| `bot` | BOT (beginning of track) |
+| `eot` | EOT (end of track) |
+| `endtime` | Teardown end |
+| `wrkcat` | Work category (filter, see below) |
+| `associations` | `<id>:<type>` grouping (see below) |
+| `segbot`, `segeot`, `segequipmentlist` | Segment window and equipment; used to find the uplink |
+| `segservicealias` | Service/link description (e.g. "34M/70M U/L v5", "D/L Only v2") |
+| `activity` | Activity description (e.g. "TKG PASS", "SSR DUMP/UNATT") |
+
+Other fields (`week`, `year`, `version`, `nib`, `configcode`, `soecode`, `equipmentlist`, `segactivity`, etc.) are not needed for now.
+
+### Filters
+
+Show a record as a spacecraft link only if all of these hold:
+
+1. `wrkcat` is `1A1` (committed tracking pass) or `1A2`. Other categories (tests, maintenance, etc.) are omitted.
+2. `facility` is one of the DSN antennas below.
+3. `projuser` is a spacecraft (not DSN, DSS, TEST, GBRA, HCRA).
+
+In the Nov 1–5 sample, facilities removed by the antenna filter were DSS-13 (GAVRT, debris detection, LRO Mini-RF), 10, 20, 28, 40, 60 (network/complex maintenance) and 38 (a JAXA SOHO pass).
+
+### Associations
+
+`associations` has the form `<id>:<type>`. Records with the same id belong together.
+
+| Type | Meaning | Example in sample |
+|---|---|---|
+| SSPA | Single spacecraft per aperture | Most records (292) |
+| MSPA | Multiple spacecraft per aperture | DSS-53: M01O, MSL, MRO, M20, EMM, TGO under one id |
+| ARRAY | One spacecraft on several antennas | VGR1 on DSS-24, 25, 26 |
+| DDOR | Two complexes track one spacecraft at once | PSYC on DSS-24 and DSS-65 |
+
+### Uplink in MSPA passes
+
+In an MSPA, the segment whose `segequipmentlist` contains `UPL` is the uplink; its `segbot`–`segeot` is the uplink window. Usually only one spacecraft has the uplink at a time; the others are downlink only. Use the **segment** equipment list, not the activity-level `equipmentlist` (e.g. the MRO activity on DSS-53 has no `UPL` at activity level, but its U/L segment does).
+
+Sample (DSS-53, association 11777924, DOY 306), uplinks in sequence:
+
+| Spacecraft | Uplink (segment) |
+|---|---|
+| M01O | 01:00–03:20 |
+| MSL | 03:50–06:00 |
+| M20 | 07:40–09:40 |
+| MRO | 10:10–13:00 |
+
+EMM and TGO are downlink only in that pass.
+
+### DSN antennas
 
 Facility to complex mapping. Show only these DSN antennas; activities on any other `facility` value (control center, non-DSN antennas) are excluded.
 
@@ -29,13 +90,15 @@ Facility to complex mapping. Show only these DSN antennas; activities on any oth
 | Canberra, Australia | DSS-43 | DSS-34, 35, 36 |
 | Madrid, Spain | DSS-63 | DSS-53, 54, 55, 56, 65 |
 
-Display states for each link: setup → tracking (BOT to EOT) → teardown.
+### Display states
 
-To confirm the full user list for a period: `jq '[.[].projuser] | unique'`.
+For each link: setup (`starttime`–`bot`) → tracking (`bot`–`eot`) → teardown (`eot`–`endtime`). During tracking, show uplink vs downlink-only using the UPL segment window. MSPA, ARRAY and DDOR groups can be drawn as one antenna to many spacecraft, or many antennas to one spacecraft.
+
+To list the users for a period: `jq '[.result.item[].projuser] | unique'`.
 
 ## Mission inventory and ephemeris sources
 
-Users seen in the Nov 1–5, 2026 schedule.
+Users in the Nov 1–5, 2026 schedule (44 distinct, confirmed from the full sample file).
 
 ### Not spacecraft (exclude)
 
@@ -158,7 +221,6 @@ Earth-centered inertial (GCRS): Earth rotates under a mostly fixed set of spacec
 
 ## Open questions
 
-- Exact schedule field names for setup / BOT / EOT / teardown times.
 - Horizons predict coverage end dates for each mission over the display window.
 - Source for IMAP (SSCWeb?) and whether a better CAPSTONE source exists.
 - Whether THB/THC are available from SSCWeb for future dates (predicted orbits).
