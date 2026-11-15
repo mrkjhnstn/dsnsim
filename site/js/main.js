@@ -870,9 +870,10 @@ function frame(nowMs) {
   tick.style.display = w >= tMin && w <= tMax ? '' : 'none';
   tick.style.left = `${(w - tMin) / (tMax - tMin) * 100}%`;
   const age = (w - generated) / 3600;
-  $('status').innerHTML = `Schedule and trajectories as of ${fmtDate(generated)} ${fmtTime(generated).slice(0, 5)} UTC`
+  const ageTxt = age < 1 ? `${Math.max(Math.round(age * 60), 0)} min` : age < 48 ? `${age.toFixed(0)} h` : `${(age / 24).toFixed(0)} days`;
+  $('status').innerHTML = `Schedule and trajectories as of ${fmtDate(generated)} ${fmtTime(generated).slice(0, 5)} UTC (${ageTxt} ago)`
     + (sel.pinned ? ` · timeline marks: ${objName(sel.pinned)}` : '')
-    + (age > 3 ? ` <span class="warn">— data is ${age < 48 ? age.toFixed(0) + ' h' : (age / 24).toFixed(0) + ' days'} old; run the backend to refresh</span>` : '');
+    + (age > 12 ? ` <span class="warn">— data is ${ageTxt} old</span>` : '');
 
   // Pick up new data from the hourly backend run
   if (nowMs - lastReload > 5 * 60 * 1000) { lastReload = nowMs; loadData().catch(() => {}); }

@@ -64,7 +64,7 @@ Display conventions: directions from Earth's centre are true; distance is logari
 
 - Trajectories are cached between runs, so Horizons is queried about once a day.
 - If the schedule can't be fetched the run fails and the last published version stays up.
-- GitHub may start scheduled runs late, and pauses schedules after 60 days without repository activity.
+- GitHub treats schedules as best-effort: in practice runs start every few hours, not hourly, and schedules pause after 60 days without repository activity. The viewer shows the data's age and warns once it is over 12 hours old.
 
 ## Tests
 
