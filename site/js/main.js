@@ -272,13 +272,13 @@ slider.addEventListener('change', () => { scrubbing = false; slider.blur(); });
 slider.addEventListener('input', () => { clock.live = false; setTime(tMin + (slider.value / 1000) * (tMax - tMin)); syncButtons(); });
 
 // ---------------------------------------------------------------- views
-const view = { focus: 'ALL', fly: null };
+const view = { focus: 'ALL', fly: null, zoom: null };   // zoom: radial distance change, keeps direction
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
 function viewTarget(key, out) {
   if (key === 'ALL') {
     out.copy(camera.position).setY(0);
     if (out.lengthSq() < 1e-6) out.set(1, 0, 1);
-    return out.normalize().setY(1.73).normalize().multiplyScalar(15);
+    return out.normalize().setY(1.73).normalize().multiplyScalar(ALL_DIST);
   }
   // Oblique view: above and east of the complex, so outbound links are visible.
   const u = tmpV2.copy(complexes.get(key).unit).applyAxisAngle(Y, earth.rotation.y);
@@ -288,6 +288,7 @@ function viewTarget(key, out) {
 function setView(key) {
   if (view.focus === key && !view.fly && key !== 'ALL') return;
   view.focus = key;
+  view.zoom = null;
   view.fly = { t0: performance.now(), from: camera.position.clone(), dur: 1800, to: key === 'ALL' ? viewTarget('ALL', new THREE.Vector3()) : null };
   document.querySelectorAll('#views [data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === key));
 }
@@ -299,8 +300,11 @@ const TOUR = ['ALL', 'GDSCC', 'CDSCC', 'MDSCC'];
 const TOUR_ALL_S = 25;                       // ALL view when nothing is in contact
 const TOUR_LEAD_S = { ALL: 6, complex: 2 };  // overview / fly-in time before the first card
 const TOUR_CARD_S = { ALL: 5, complex: 6 };
+// In a complex view the tour holds the close-up briefly, then pulls straight back
+// to the ALL distance, so the complex stays in view along with its spacecraft.
+const TOUR_HOLD_S = 3, TOUR_PULL_S = 3, ALL_DIST = 15;
 const REGION_ORDER = ['heo', 'lunar', 'l1l2', 'mars', 'helio', 'outer'];
-const tour = { on: false, i: 0, start: 0, next: 0, k: -1, picked: false, list: [] };
+const tour = { on: false, i: 0, start: 0, next: 0, k: -1, picked: false, list: [], pullAt: 0 };
 function craftInContact() {
   const t = clock.t, out = [];
   for (const c of craft.values()) {
@@ -317,6 +321,7 @@ function tourStep(i, nowMs) {
     : complexes.get(key).antennas.map((a) => ({ type: 'ant', ref: a }));
   const dwell = tour.list.length ? TOUR_LEAD_S[kind] + tour.list.length * TOUR_CARD_S[kind] : TOUR_ALL_S;
   tour.next = nowMs + dwell * 1000;
+  tour.pullAt = kind === 'complex' ? nowMs + 1800 + TOUR_HOLD_S * 1000 : 0;   // after the 1.8 s fly-in
   if (tour.picked) { select(null); tour.picked = false; }
   setView(key);
 }
@@ -328,7 +333,7 @@ function setTour(on) {
   else if (tour.picked) { select(null); tour.picked = false; }
 }
 $('tour').addEventListener('click', () => setTour(!tour.on));
-canvas.addEventListener('pointerdown', () => { if (tour.on) setTour(false); });
+canvas.addEventListener('pointerdown', () => { view.zoom = null; if (tour.on) setTour(false); });
 $('fs').addEventListener('click', toggleFs);
 function toggleFs() { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
 addEventListener('keydown', (e) => {
@@ -734,6 +739,15 @@ function frame(nowMs) {
     camera.position.copy(view.fly.from).normalize().lerp(tmpV.normalize(), e).normalize().multiplyScalar(r);
     if (u >= 1) view.fly = null;
   }
+  if (tour.on && tour.pullAt && nowMs >= tour.pullAt && !view.fly) {
+    tour.pullAt = 0;
+    view.zoom = { t0: nowMs, from: camera.position.length(), to: ALL_DIST, dur: TOUR_PULL_S * 1000 };
+  }
+  if (view.zoom) {   // runs alongside the rotation-following above, so the complex stays put
+    const u = Math.min((nowMs - view.zoom.t0) / view.zoom.dur, 1), e = u * u * (3 - 2 * u);
+    camera.position.setLength(THREE.MathUtils.lerp(view.zoom.from, view.zoom.to, e));
+    if (u >= 1) view.zoom = null;
+  }
   if (tour.on) {
     if (nowMs > tour.next) tourStep((tour.i + 1) % TOUR.length, nowMs);
     else if (tour.list.length) {
@@ -888,7 +902,7 @@ loadData().then(() => {
   if (params.get('view')) setView(params.get('view'));
   if (params.has('tour')) setTour(true);
   syncButtons();
-  window.__dsnsim = { clock, view, craft, links, antennas, select, tour, sel, jump };
+  window.__dsnsim = { clock, view, craft, links, antennas, select, tour, sel, jump, camera };
   requestAnimationFrame(frame);
 }).catch((err) => {
   const el = $('error');
