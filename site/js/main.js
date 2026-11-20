@@ -302,9 +302,9 @@ const TOUR_LEAD_S = { ALL: 6, complex: 2 };  // overview / fly-in time before th
 const TOUR_CARD_S = { ALL: 5, complex: 6 };
 // In a complex view the tour holds the close-up briefly, then pulls straight back
 // to the ALL distance, so the complex stays in view along with its spacecraft.
-const TOUR_HOLD_S = 3, TOUR_PULL_S = 3, ALL_DIST = 15;
+const TOUR_HOLD_S = 3, TOUR_PULL_S = 10, ALL_DIST = 15;
 const REGION_ORDER = ['heo', 'lunar', 'l1l2', 'mars', 'helio', 'outer'];
-const tour = { on: false, i: 0, start: 0, next: 0, k: -1, picked: false, list: [], pullAt: 0 };
+const tour = { on: false, i: 0, start: 0, next: 0, k: -1, picked: false, list: [], pullAt: 0, spin: false };   // spin: slow rotation in a complex view, from the pull-back on
 function craftInContact() {
   const t = clock.t, out = [];
   for (const c of craft.values()) {
@@ -321,6 +321,7 @@ function tourStep(i, nowMs) {
     : complexes.get(key).antennas.map((a) => ({ type: 'ant', ref: a }));
   const dwell = tour.list.length ? TOUR_LEAD_S[kind] + tour.list.length * TOUR_CARD_S[kind] : TOUR_ALL_S;
   tour.next = nowMs + dwell * 1000;
+  tour.spin = false;
   tour.pullAt = kind === 'complex' ? nowMs + 1800 + TOUR_HOLD_S * 1000 : 0;   // after the 1.8 s fly-in
   if (tour.picked) { select(null); tour.picked = false; }
   setView(key);
@@ -741,6 +742,7 @@ function frame(nowMs) {
   }
   if (tour.on && tour.pullAt && nowMs >= tour.pullAt && !view.fly) {
     tour.pullAt = 0;
+    tour.spin = true;   // rotate slowly as in the ALL view, so links to this complex separate
     view.zoom = { t0: nowMs, from: camera.position.length(), to: ALL_DIST, dur: TOUR_PULL_S * 1000 };
   }
   if (view.zoom) {   // runs alongside the rotation-following above, so the complex stays put
@@ -762,7 +764,7 @@ function frame(nowMs) {
       }
     }
   }
-  controls.autoRotate = tour.on && view.focus === 'ALL' && !view.fly;
+  controls.autoRotate = tour.on && !view.fly && (view.focus === 'ALL' || tour.spin);
   controls.autoRotateSpeed = 0.35;
   controls.update();
 
