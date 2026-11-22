@@ -72,14 +72,40 @@ controls.minDistance = 1.5;
 controls.maxDistance = 40;
 const resolution = new THREE.Vector2(1, 1);
 
+const BASE_FOV = 40;
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
+  // In portrait, widen the vertical field of view so the scene keeps the same width as landscape.
+  camera.fov = w >= h ? BASE_FOV : Math.min(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2)) / camera.aspect) * 180 / Math.PI, 80);
   camera.updateProjectionMatrix();
   resolution.set(w, h);
+  // Panels fit between the top bar and the controls, whatever their heights on this screen.
+  const root = document.documentElement.style;
+  root.setProperty('--top', `${$('topbar').offsetHeight}px`);
+  root.setProperty('--bottom', `${$('controls').offsetHeight}px`);
 }
 addEventListener('resize', resize);
+addEventListener('orientationchange', () => setTimeout(resize, 300));
+if (window.ResizeObserver) { const ro = new ResizeObserver(() => resize()); ro.observe($('topbar')); ro.observe($('controls')); }
+
+// Antenna list: shown or hidden with the disclosure triangle on the title.
+// Hidden by default on small screens; the choice is remembered on this device.
+const SMALL = matchMedia('(max-width: 760px), (max-height: 500px)');
+function setBoard(open, remember = true) {
+  document.body.classList.toggle('board-closed', !open);
+  $('brand').setAttribute('aria-expanded', String(open));
+  if (remember) try { localStorage.setItem('dsnsim.board', open ? '1' : '0'); } catch (e) { /* storage unavailable */ }
+}
+{
+  let saved = null;
+  try { saved = localStorage.getItem('dsnsim.board'); } catch (e) { /* storage unavailable */ }
+  setBoard(saved === null ? !SMALL.matches : saved === '1', false);
+}
+$('brand').addEventListener('click', () => setBoard(document.body.classList.contains('board-closed')));
+// iPhone Safari has no Fullscreen API: hide the button there.
+if (!document.fullscreenEnabled) document.body.classList.add('no-fs');
 resize();
 
 // Stars
@@ -343,6 +369,7 @@ addEventListener('keydown', (e) => {
   if (k === ' ') { e.preventDefault(); $('play').click(); }
   else if (k === 'n') goLive();
   else if (k === 'f') toggleFs();
+  else if (k === 'l') $('brand').click();
   else if (k === 't') setTour(!tour.on);
   else if (k === 'escape') select(null);
   else if (k === '[') jump(-1);
