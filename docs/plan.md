@@ -63,7 +63,7 @@ Outputs: `schedule.json`, `ephem.json`, `meta.json`.
 - **Antennas:** the antennas of a complex are fanned out in an east–west row (about 2.4° apart, 70 m first) so each is visible.
 - **Links:** leave the antenna vertically and bend toward the spacecraft, so they never cut through the Earth's limb at log scale. Cyan while tracking, with cyan pulses down and orange pulses up during uplink windows; thicker for 70 m.
 - **Setup / teardown:** setup is a blue dashed line that extends from the antenna and reaches the spacecraft at BOT; teardown is a gray dotted line that retracts to the antenna.
-- **Planets:** spacecraft at the Moon, Mars and Jupiter are drawn at the body; its label lists who is in contact. Clicking the body fans them out in a ring and opens a card listing them. MSPA links to a collapsed body merge into one beam.
+- **Planets:** spacecraft at the Moon, Mercury, Mars and Jupiter are drawn at the body; its label lists who is in contact. Clicking the body fans them out in a ring and opens a card listing them. MSPA links to a collapsed body merge into one beam.
 - **Cards:** hover or click a spacecraft, antenna or planet. Pinned cards add pass marks on the timeline and PREV / NEXT PASS.
 - **Complex views:** camera follows the Earth's rotation; other complexes' links are dimmed.
 - **Auto-tour:** ALL view with slow rotation, showing a card for each spacecraft in setup, tracking or teardown (5 s each, inside out, expanding body groups as needed); then each complex: fly in, hold the close-up 3 s, then pull straight back (10 s) to the ALL distance, rotating slowly as in the ALL view while the camera keeps following the Earth's rotation, showing each antenna's card (6 s each).

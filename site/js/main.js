@@ -14,13 +14,13 @@ const CURVE_N = 32;            // segments per link
 const LINK_LIFT = 0.3;         // links leave the antenna vertically, then bend to the target
 const OBLIQUITY = 23.4393 * Math.PI / 180;
 const COLORS = { track: 0x4fd8ff, uplink: 0xffb347, setup: 0x7aa2ff, teardown: 0x9aa4b5, busy: 0xf0a030, idle: 0x4a566b };
-const REGION_COLORS = { heo: 0x9be7ff, l1l2: 0xb8f5c5, lunar: 0xdddddd, mars: 0xff9a76, helio: 0xffe08a, outer: 0xd0b3ff };
+const REGION_COLORS = { heo: 0x9be7ff, l1l2: 0xb8f5c5, lunar: 0xdddddd, mars: 0xff9a76, mercury: 0xc9b6a6, helio: 0xffe08a, outer: 0xd0b3ff };
 const RINGS = [
   [42164, 'GEO'], [384400, 'Moon'], [1.5e6, 'L1 / L2'], [1.496e8, '1 AU'], [1.496e9, '10 AU'], [1.496e10, '100 AU'],
 ];
-const REGION_NAME = { heo: 'High Earth orbit', l1l2: 'Sun–Earth L1/L2', lunar: 'Lunar', mars: 'Mars', helio: 'Heliocentric', outer: 'Outer solar system' };
+const REGION_NAME = { heo: 'High Earth orbit', l1l2: 'Sun–Earth L1/L2', lunar: 'Lunar', mars: 'Mars', mercury: 'Mercury', helio: 'Heliocentric', outer: 'Outer solar system' };
 // Spacecraft this close (km) to a body are fanned out in a ring around its marker.
-const HOSTS = { moon: 7e4, mars: 1.5e5, jupiter: 1.2e7 };
+const HOSTS = { moon: 7e4, mars: 1.5e5, mercury: 1e5, jupiter: 1.2e7 };
 const C_KM_S = 299792.458;
 const COMPLEX_LABEL = { GDSCC: 'GOLDSTONE', CDSCC: 'CANBERRA', MDSCC: 'MADRID' };
 
@@ -246,7 +246,7 @@ function indexData() {
       craft.set(act.user, { key: act.user, name: m.name, region: m.region, mesh, pos: mesh.position, km: new THREE.Vector3(), visible: false, active: false, host: null, sx: 0, sy: 0, onScreen: false });
     }
   }
-  const bodyStyle = { moon: [0.06, 0x9a9a9a], mars: [0.075, 0xc8643c], jupiter: [0.12, 0xc9a877], sun: [0.2, 0xffe9a8] };
+  const bodyStyle = { moon: [0.06, 0x9a9a9a], mars: [0.075, 0xc8643c], mercury: [0.055, 0x9e9189], jupiter: [0.12, 0xc9a877], sun: [0.2, 0xffe9a8] };
   for (const [key, [size, color]] of Object.entries(bodyStyle)) {
     if (bodies.has(key) || !trackFor(key)) continue;
     const mesh = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color }));
@@ -329,7 +329,7 @@ const TOUR_CARD_S = { ALL: 5, complex: 6 };
 // In a complex view the tour holds the close-up briefly, then pulls straight back
 // to the ALL distance, so the complex stays in view along with its spacecraft.
 const TOUR_HOLD_S = 3, TOUR_PULL_S = 10, ALL_DIST = 15;
-const REGION_ORDER = ['heo', 'lunar', 'l1l2', 'mars', 'helio', 'outer'];
+const REGION_ORDER = ['heo', 'lunar', 'l1l2', 'mars', 'mercury', 'helio', 'outer'];
 const tour = { on: false, i: 0, start: 0, next: 0, k: -1, picked: false, list: [], pullAt: 0, spin: false };   // spin: slow rotation in a complex view, from the pull-back on
 function craftInContact() {
   const t = clock.t, out = [];

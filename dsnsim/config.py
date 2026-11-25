@@ -50,13 +50,14 @@ TRACK_WRKCATS = {"1A1", "1A2"}
 BODIES = {
     "sun": {"name": "Sun", "horizons": "10", "step": "deep"},
     "moon": {"name": "Moon", "horizons": "301", "step": "near"},
+    "mercury": {"name": "Mercury", "horizons": "199", "step": "deep"},
     "mars": {"name": "Mars", "horizons": "499", "step": "deep"},
     "jupiter": {"name": "Jupiter", "horizons": "599", "step": "deep"},
     "sel1": {"name": "Sun-Earth L1", "horizons": "31", "step": "deep"},
 }
 
 # --- Missions ----------------------------------------------------------------
-# region: heo | l1l2 | lunar | mars | helio | outer  (used by the viewer for grouping)
+# region: heo | l1l2 | lunar | mars | mercury | helio | outer  (used by the viewer for grouping)
 MISSIONS = {
     # HEO (TLE)
     "CHDR": {"name": "Chandra", "region": "heo", "tle": 25867, "step": "near"},
@@ -95,7 +96,7 @@ MISSIONS = {
     "ESCB": {"name": "ESCAPADE Blue", "region": "helio", "horizons": "ESCAPADE-Blue", "step": "deep"},
     "ESCG": {"name": "ESCAPADE Gold", "region": "helio", "horizons": "ESCAPADE-Gold", "step": "deep"},
     "BIOS": {"name": "BioSentinel", "region": "helio", "horizons": "BioSentinel", "step": "deep"},
-    "BEPI": {"name": "BepiColombo", "region": "helio", "horizons": "-121", "step": "deep"},
+    "BEPI": {"name": "BepiColombo", "region": "mercury", "horizons": "-121", "fallback": "mercury", "step": "deep"},
     "MMX": {"name": "Martian Moons eXploration", "region": "helio", "horizons": "MMX", "step": "deep"},
     "STA": {"name": "STEREO-A", "region": "helio", "horizons": "-234", "step": "deep"},
     "SPP": {"name": "Parker Solar Probe", "region": "helio", "horizons": "-96", "step": "deep"},
