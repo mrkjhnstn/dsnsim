@@ -83,7 +83,11 @@ def build_ephem(now: datetime, old: dict, max_age_h: float, users: set[str], pau
         except Exception as exc:  # one bad source must not stop the build
             fb = cfg.get("fallback")
             status[key] = {"source": src, "ok": False, "error": str(exc)[:600]}
-            if fb:
+            if cached and cached.get("source") == src and "pos" in cached and _covers(cached, now, now):
+                # Source temporarily down: keep the previous trajectory while it still covers now.
+                objects[key] = cached
+                status[key]["kept_previous"] = True
+            elif fb:
                 objects[key] = {"alias": fb}
                 status[key]["fallback"] = fb
 
@@ -232,7 +236,8 @@ def main(argv: list[str] | None = None) -> int:
                 tag = "ok  " if st["ok"] else "FAIL"
                 extra = " (cached)" if st.get("cached") else ""
                 if not st["ok"]:
-                    extra = f" -> stand-in {st['fallback']}" if st.get("fallback") else " -> not shown"
+                    extra = (" -> using previous trajectory" if st.get("kept_previous")
+                             else f" -> stand-in {st['fallback']}" if st.get("fallback") else " -> not shown")
                     extra += f"\n       {st['error']}"
                 print(f"  {tag} {key:8s} {st['source']}{extra}")
     return 0

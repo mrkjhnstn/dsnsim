@@ -40,7 +40,7 @@ Useful options:
 - `--schedule-file FILE --now ISO` builds from a saved schedule at a fixed time.
 - `--skip-ephem` refreshes the schedule only.
 
-Trajectory sources are set per mission in [`dsnsim/config.py`](dsnsim/config.py). A mission whose source fails is reported and either falls back to a stand-in or is left out; it never stops the build.
+Trajectory sources are set per mission in [`dsnsim/config.py`](dsnsim/config.py). A mission whose source fails is reported and keeps its previous trajectory while that still covers the current time; otherwise it falls back to a stand-in or is left out. A failure never stops the build.
 
 ## Viewer
 

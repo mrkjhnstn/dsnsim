@@ -118,3 +118,26 @@ def test_build_offline(tmp_path, monkeypatch):
     assert build.main(args) == 0
     meta2 = json.loads((tmp_path / "meta.json").read_text())
     assert meta2["ephem_status"]["VGR1"].get("cached") is True
+
+
+def test_source_outage_keeps_previous_trajectory(tmp_path, monkeypatch):
+    """A failed fetch reuses the previous trajectory if it still covers now."""
+    def ok(command, start, stop, step, get=None):
+        n = int((stop - start).total_seconds() // step) + 1
+        return {"t0": round(start.timestamp()), "step": step, "pos": [[1e6, 2e6, 3e5]] * n}
+
+    def down(*a, **k):
+        raise ephem.EphemError("HTTP Error 503: Service Unavailable")
+
+    monkeypatch.setattr(build.time, "sleep", lambda s: None)
+    monkeypatch.setattr(ephem, "fetch_horizons", ok)
+    monkeypatch.setattr(ephem, "fetch_tle", lambda norad, start, stop, step, get=None: ok("x", start, stop, step))
+    base = ["--out", str(tmp_path), "--schedule-file", str(EXAMPLE)]
+    assert build.main(base + ["--now", "2026-11-02T00:00:00Z"]) == 0
+    # Two days later the cache is stale, and CelesTrak is down.
+    monkeypatch.setattr(ephem, "fetch_tle", down)
+    assert build.main(base + ["--now", "2026-11-04T00:00:00Z"]) == 0
+    meta = json.loads((tmp_path / "meta.json").read_text())
+    eph_out = json.loads((tmp_path / "ephem.json").read_text())
+    assert meta["ephem_status"]["CHDR"]["kept_previous"] is True
+    assert "pos" in eph_out["objects"]["CHDR"]
