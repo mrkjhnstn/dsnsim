@@ -45,6 +45,8 @@ ANTENNAS = {
 
 # --- Schedule classification -------------------------------------------------
 GROUND_USERS = {"DSN", "DSS", "TEST", "GBRA", "HCRA"}
+# Pre-launch missions: their activities are ground system tests, shown as busy.
+PRELAUNCH_USERS = {"AGM1", "SRBB", "SRJT", "SRSP"}
 TRACK_WRKCATS = {"1A1", "1A2"}
 
 # --- Context bodies (Horizons IDs) -------------------------------------------
@@ -104,6 +106,7 @@ MISSIONS = {
     "PSYC": {"name": "Psyche", "region": "helio", "horizons": "-255", "step": "deep"},
     "LUCY": {"name": "Lucy", "region": "helio", "horizons": "-49", "step": "deep"},
     "ORX": {"name": "OSIRIS-APEX", "region": "helio", "horizons": "-64", "step": "deep"},
+    "HYB2": {"name": "Hayabusa2", "region": "helio", "horizons": "-37", "step": "deep"},
     # Outer solar system
     "JNO": {"name": "Juno", "region": "outer", "horizons": "-61", "fallback": "jupiter", "step": "deep"},
     "EURC": {"name": "Europa Clipper", "region": "outer", "horizons": "-159", "step": "deep"},

@@ -6,7 +6,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-from .config import ANTENNAS, GROUND_USERS, SCHEDULE_URL, TRACK_WRKCATS
+from .config import ANTENNAS, GROUND_USERS, PRELAUNCH_USERS, SCHEDULE_URL, TRACK_WRKCATS
 
 UTC = timezone.utc
 
@@ -59,7 +59,7 @@ def process(raw: dict) -> list[dict]:
         first = segs[0]
         user = first["projuser"].strip()
         wrkcat = first["wrkcat"].strip()
-        is_track = user not in GROUND_USERS and wrkcat in TRACK_WRKCATS
+        is_track = user not in GROUND_USERS and user not in PRELAUNCH_USERS and wrkcat in TRACK_WRKCATS
         assoc = first.get("associations", "").strip()
         assoc_id, _, assoc_type = assoc.partition(":")
         uplink = _merge(

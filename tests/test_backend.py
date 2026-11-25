@@ -158,3 +158,11 @@ def test_tle_outage_uses_horizons_backup(tmp_path, monkeypatch):
     assert build.main(["--out", str(tmp_path), "--schedule-file", str(EXAMPLE), "--now", "2026-11-02T00:00:00Z"]) == 0
     st = json.loads((tmp_path / "meta.json").read_text())["ephem_status"]["CHDR"]
     assert st["ok"] and st["source"] == "horizons:Chandra Observatory" and st["backup_for"] == "tle:25867"
+
+
+def test_prelaunch_users_are_busy():
+    raw = json.loads(EXAMPLE.read_text())
+    rec = next(r for r in raw["result"]["item"] if r["wrkcat"].strip() == "1A1" and r["facility"] in ANTENNAS)
+    rec = {**rec, "projuser": "SRBB", "pkgid": 1}
+    acts = schedule.process({"result": {"item": [rec]}})
+    assert acts[0]["kind"] == "busy"
