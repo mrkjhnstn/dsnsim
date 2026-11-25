@@ -134,10 +134,27 @@ def test_source_outage_keeps_previous_trajectory(tmp_path, monkeypatch):
     monkeypatch.setattr(ephem, "fetch_tle", lambda norad, start, stop, step, get=None: ok("x", start, stop, step))
     base = ["--out", str(tmp_path), "--schedule-file", str(EXAMPLE)]
     assert build.main(base + ["--now", "2026-11-02T00:00:00Z"]) == 0
-    # Two days later the cache is stale, and CelesTrak is down.
+    # Two days later the cache is stale, and both CelesTrak and the Horizons backup are down.
     monkeypatch.setattr(ephem, "fetch_tle", down)
+    monkeypatch.setattr(ephem, "fetch_horizons", down)
     assert build.main(base + ["--now", "2026-11-04T00:00:00Z"]) == 0
     meta = json.loads((tmp_path / "meta.json").read_text())
     eph_out = json.loads((tmp_path / "ephem.json").read_text())
     assert meta["ephem_status"]["CHDR"]["kept_previous"] is True
     assert "pos" in eph_out["objects"]["CHDR"]
+
+
+def test_tle_outage_uses_horizons_backup(tmp_path, monkeypatch):
+    def ok(command, start, stop, step, get=None):
+        n = int((stop - start).total_seconds() // step) + 1
+        return {"t0": round(start.timestamp()), "step": step, "pos": [[1e6, 2e6, 3e5]] * n}
+
+    def down(*a, **k):
+        raise ephem.EphemError("HTTP Error 503: Service Unavailable")
+
+    monkeypatch.setattr(build.time, "sleep", lambda s: None)
+    monkeypatch.setattr(ephem, "fetch_horizons", ok)
+    monkeypatch.setattr(ephem, "fetch_tle", down)
+    assert build.main(["--out", str(tmp_path), "--schedule-file", str(EXAMPLE), "--now", "2026-11-02T00:00:00Z"]) == 0
+    st = json.loads((tmp_path / "meta.json").read_text())["ephem_status"]["CHDR"]
+    assert st["ok"] and st["source"] == "horizons:Chandra Observatory" and st["backup_for"] == "tle:25867"

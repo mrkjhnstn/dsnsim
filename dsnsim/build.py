@@ -62,34 +62,49 @@ def build_ephem(now: datetime, old: dict, max_age_h: float, users: set[str], pau
             status[key] = {"source": "none", "ok": True}
             return
         src = f"tle:{cfg['tle']}" if "tle" in cfg else f"horizons:{cfg['horizons']}"
+        backup = f"horizons:{cfg['horizons_backup']}" if "horizons_backup" in cfg else None
+        sources = {src, backup} - {None}
         cached = old_objs.get(key)
         if (
             cached
-            and cached.get("source") == src
+            and cached.get("source") in sources
             and "pos" in cached
             and now.timestamp() - cached.get("fetched", 0) < max_age_h * 3600
             and _covers(cached, need_start, need_stop)
         ):
             objects[key] = cached
-            status[key] = {"source": src, "ok": True, "cached": True}
+            status[key] = {"source": cached["source"], "ok": True, "cached": True}
             return
-        try:
-            track, src = _fetch_object(cfg, grid_start, grid_stop)
+
+        def attempt(fetch, label):
+            track = fetch()
             time.sleep(pause)
             if not _covers(track, need_start, need_stop):
                 raise eph.EphemError("trajectory does not cover the display window")
-            objects[key] = {**track, "source": src, "fetched": round(now.timestamp())}
+            objects[key] = {**track, "source": label, "fetched": round(now.timestamp())}
+
+        step = STEP_SECONDS[cfg.get("step", "deep")]
+        try:
+            attempt(lambda: _fetch_object(cfg, grid_start, grid_stop)[0], src)
             status[key] = {"source": src, "ok": True}
+            return
         except Exception as exc:  # one bad source must not stop the build
-            fb = cfg.get("fallback")
             status[key] = {"source": src, "ok": False, "error": str(exc)[:600]}
-            if cached and cached.get("source") == src and "pos" in cached and _covers(cached, now, now):
-                # Source temporarily down: keep the previous trajectory while it still covers now.
-                objects[key] = cached
-                status[key]["kept_previous"] = True
-            elif fb:
-                objects[key] = {"alias": fb}
-                status[key]["fallback"] = fb
+        if backup:
+            try:
+                attempt(lambda: eph.fetch_horizons(cfg["horizons_backup"], grid_start, grid_stop, step), backup)
+                status[key] = {"source": backup, "ok": True, "backup_for": src, "primary_error": status[key]["error"]}
+                return
+            except Exception as exc:
+                status[key]["error"] += f" | backup {backup}: {str(exc)[:400]}"
+        fb = cfg.get("fallback")
+        if cached and cached.get("source") in sources and "pos" in cached and _covers(cached, now, now):
+            # Sources temporarily down: keep the previous trajectory while it still covers now.
+            objects[key] = cached
+            status[key]["kept_previous"] = True
+        elif fb:
+            objects[key] = {"alias": fb}
+            status[key]["fallback"] = fb
 
     for key, cfg in BODIES.items():
         resolve(key, cfg)
@@ -235,6 +250,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.check or not st["ok"]:
                 tag = "ok  " if st["ok"] else "FAIL"
                 extra = " (cached)" if st.get("cached") else ""
+                if st.get("backup_for"):
+                    extra += f" (backup; {st['backup_for']} failed: {st['primary_error'][:80]})"
                 if not st["ok"]:
                     extra = (" -> using previous trajectory" if st.get("kept_previous")
                              else f" -> stand-in {st['fallback']}" if st.get("fallback") else " -> not shown")

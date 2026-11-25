@@ -9,6 +9,7 @@ Each mission has one of:
   alias:    key of a context body used as a stand-in (e.g. "moon")
   (none):   no trajectory available; the antenna is shown in use, with no link
 and optionally:
+  horizons_backup: Horizons COMMAND tried if the primary (e.g. CelesTrak) fails
   fallback: context body to use if the primary source fails
   step:     "near" (hourly samples) or "deep" (6-hourly samples)
 
@@ -60,13 +61,13 @@ BODIES = {
 # region: heo | l1l2 | lunar | mars | mercury | helio | outer  (used by the viewer for grouping)
 MISSIONS = {
     # HEO (TLE)
-    "CHDR": {"name": "Chandra", "region": "heo", "tle": 25867, "step": "near"},
-    "MMS1": {"name": "MMS 1", "region": "heo", "tle": 40482, "step": "near"},
-    "MMS2": {"name": "MMS 2", "region": "heo", "tle": 40483, "step": "near"},
-    "MMS3": {"name": "MMS 3", "region": "heo", "tle": 40484, "step": "near"},
-    "MMS4": {"name": "MMS 4", "region": "heo", "tle": 40485, "step": "near"},
+    "CHDR": {"name": "Chandra", "region": "heo", "tle": 25867, "horizons_backup": "Chandra Observatory", "step": "near"},
+    "MMS1": {"name": "MMS 1", "region": "heo", "tle": 40482, "horizons_backup": "MMS-1", "step": "near"},
+    "MMS2": {"name": "MMS 2", "region": "heo", "tle": 40483, "horizons_backup": "MMS-2", "step": "near"},
+    "MMS3": {"name": "MMS 3", "region": "heo", "tle": 40484, "horizons_backup": "MMS-3", "step": "near"},
+    "MMS4": {"name": "MMS 4", "region": "heo", "tle": 40485, "horizons_backup": "MMS-4", "step": "near"},
     "TESS": {"name": "TESS", "region": "heo", "horizons": "-95", "step": "near"},
-    "XMM": {"name": "XMM-Newton", "region": "heo", "tle": 25989, "step": "near"},
+    "XMM": {"name": "XMM-Newton", "region": "heo", "tle": 25989, "horizons_backup": "XMM-Newton", "step": "near"},
     # Sun-Earth L1/L2 region
     "ACE": {"name": "ACE", "region": "l1l2", "horizons": "-92", "step": "near"},
     "SOHO": {"name": "SOHO", "region": "l1l2", "horizons": "-21", "step": "near"},
